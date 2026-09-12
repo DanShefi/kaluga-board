@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, X, Phone, MapPin } from "lucide-react";
+import { Plus, X, Phone, MapPin, ChevronLeft, ChevronRight } from "lucide-react";
 import { db } from "./firebase.js";
 import {
   collection,
@@ -150,6 +150,14 @@ export default function App() {
     setLightboxIndex(0);
   }
 
+  function showPrevPhoto(photosLength) {
+    setLightboxIndex((i) => (i - 1 + photosLength) % photosLength);
+  }
+
+  function showNextPhoto(photosLength) {
+    setLightboxIndex((i) => (i + 1) % photosLength);
+  }
+
   const visible = (ads || []).filter((a) => filter === "all" || a.category === filter);
 
   return (
@@ -258,7 +266,7 @@ export default function App() {
           ? selectedAd.photos
           : (selectedAd.photo ? [selectedAd.photo] : []);
         return (
-          <div style={s.overlay} onClick={() => setSelectedAd(null)}>
+          <div style={s.overlayCenter} onClick={() => setSelectedAd(null)}>
             <div style={s.detailCard} onClick={(e) => e.stopPropagation()}>
               <div style={s.formHeader}>
                 <span style={{ ...s.catTag, color: cat.pin }}>{cat.label}</span>
@@ -269,7 +277,30 @@ export default function App() {
 
               {photos.length > 0 && (
                 <div>
-                  <img src={photos[lightboxIndex]} alt={selectedAd.title} style={s.detailMainPhoto} />
+                  <div style={s.detailPhotoWrap}>
+                    <img src={photos[lightboxIndex]} alt={selectedAd.title} style={s.detailMainPhoto} />
+                    {photos.length > 1 && (
+                      <>
+                        <button
+                          type="button"
+                          style={{ ...s.photoNavBtn, left: 8 }}
+                          onClick={() => showPrevPhoto(photos.length)}
+                          aria-label="Предыдущее фото"
+                        >
+                          <ChevronLeft size={22} color="#FBF3E1" />
+                        </button>
+                        <button
+                          type="button"
+                          style={{ ...s.photoNavBtn, right: 8 }}
+                          onClick={() => showNextPhoto(photos.length)}
+                          aria-label="Следующее фото"
+                        >
+                          <ChevronRight size={22} color="#FBF3E1" />
+                        </button>
+                        <span style={s.photoCounter}>{lightboxIndex + 1} / {photos.length}</span>
+                      </>
+                    )}
+                  </div>
                   {photos.length > 1 && (
                     <div style={s.thumbRow}>
                       {photos.map((p, i) => (
@@ -420,9 +451,13 @@ const s = {
   fab: { position: "fixed", right: 20, bottom: 24, width: 56, height: 56, borderRadius: "50%", background: "#C97B3E", border: "none", boxShadow: "0 6px 16px rgba(0,0,0,0.4)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
   errorToast: { position: "fixed", bottom: 90, left: "50%", transform: "translateX(-50%)", background: "#3A2A18", color: "#FBF3E1", padding: "8px 16px", borderRadius: 8, fontSize: 13, maxWidth: "90%", textAlign: "center", cursor: "pointer" },
   overlay: { position: "fixed", inset: 0, background: "rgba(20,12,4,0.55)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 10 },
+  overlayCenter: { position: "fixed", inset: 0, background: "rgba(20,12,4,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10, padding: 16 },
   formCard: { background: "#FBF3E1", width: "100%", maxWidth: 480, borderRadius: "16px 16px 0 0", padding: "18px 20px 24px", maxHeight: "88vh", overflowY: "auto" },
-  detailCard: { background: "#FBF3E1", width: "100%", maxWidth: 480, borderRadius: "16px 16px 0 0", padding: "18px 20px 26px", maxHeight: "90vh", overflowY: "auto" },
+  detailCard: { background: "#FBF3E1", width: "100%", maxWidth: 480, borderRadius: 16, padding: "18px 20px 26px", maxHeight: "90vh", overflowY: "auto" },
+  detailPhotoWrap: { position: "relative" },
   detailMainPhoto: { width: "100%", height: 240, objectFit: "cover", borderRadius: 8, display: "block" },
+  photoNavBtn: { position: "absolute", top: "50%", transform: "translateY(-50%)", background: "rgba(20,12,4,0.5)", border: "none", borderRadius: "50%", width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" },
+  photoCounter: { position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.6)", color: "#FBF3E1", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999 },
   thumbRow: { display: "flex", gap: 8, marginTop: 8, overflowX: "auto" },
   thumb: { width: 52, height: 52, objectFit: "cover", borderRadius: 6, flexShrink: 0 },
   detailTitle: { fontFamily: "'Caveat', cursive", fontSize: 28, color: "#2E2013", margin: "14px 0 2px", fontWeight: 700 },

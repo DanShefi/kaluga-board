@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, X, Phone, MapPin, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, X, Phone, MapPin, ChevronLeft, ChevronRight, Heart } from "lucide-react";
 import { db } from "./firebase.js";
 import {
   collection,
@@ -51,6 +51,16 @@ function compressImage(file, maxWidth = 480, quality = 0.62) {
 }
 
 const MAX_PHOTOS = 5;
+const FAVORITES_KEY = "kaluga-board-favorites";
+
+function loadFavorites() {
+  try {
+    const raw = localStorage.getItem(FAVORITES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
 
 export default function App() {
   const [ads, setAds] = useState(null);
@@ -61,6 +71,7 @@ export default function App() {
   const [photoBusy, setPhotoBusy] = useState(false);
   const [selectedAd, setSelectedAd] = useState(null);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [favorites, setFavorites] = useState(loadFavorites);
   const [form, setForm] = useState({
     title: "",
     category: "goods",
@@ -69,6 +80,14 @@ export default function App() {
     contact: "",
     photos: [],
   });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
+    } catch {
+      // ignore storage errors
+    }
+  }, [favorites]);
 
   useEffect(() => {
     const q = query(collection(db, "ads"), orderBy("createdAt", "desc"));
@@ -158,7 +177,14 @@ export default function App() {
     setLightboxIndex((i) => (i + 1) % photosLength);
   }
 
-  const visible = (ads || []).filter((a) => filter === "all" || a.category === filter);
+  function toggleFavorite(id) {
+    setFavorites((favs) => (favs.includes(id) ? favs.filter((f) => f !== id) : [...favs, id]));
+  }
+
+  const visible = (ads || []).filter((a) => {
+    if (filter === "favorites") return favorites.includes(a.id);
+    return filter === "all" || a.category === filter;
+  });
 
   return (
     <div style={s.page}>
@@ -197,6 +223,13 @@ export default function App() {
             {c.label}
           </button>
         ))}
+        <button
+          className="kb-chip"
+          style={{ ...s.chip, ...(filter === "favorites" ? s.chipActive : {}) }}
+          onClick={() => setFilter("favorites")}
+        >
+          ♥ Избранное
+        </button>
       </div>
 
       <main style={s.board}>
@@ -205,7 +238,9 @@ export default function App() {
         {ads !== null && visible.length === 0 && (
           <div style={s.empty}>
             <p style={s.emptyText}>
-              {filter === "all" ? "Пока здесь пусто. Стань первым, кто повесит объявление." : "В этой категории пока ничего нет."}
+              {filter === "all" && "Пока здесь пусто. Стань первым, кто повесит объявление."}
+              {filter === "favorites" && "Пока нет избранных объявлений. Нажми на сердечко на карточке, чтобы сохранить."}
+              {filter !== "all" && filter !== "favorites" && "В этой категории пока ничего нет."}
             </p>
           </div>
         )}
@@ -225,6 +260,17 @@ export default function App() {
                 onKeyDown={(e) => { if (e.key === "Enter") openAd(ad); }}
               >
                 <div style={{ ...s.pin, background: cat.pin }} />
+                <button
+                  style={s.favoriteBtn}
+                  onClick={(e) => { e.stopPropagation(); toggleFavorite(ad.id); }}
+                  aria-label="В избранное"
+                >
+                  <Heart
+                    size={16}
+                    color={favorites.includes(ad.id) ? "#C94F4F" : "#8a7a63"}
+                    fill={favorites.includes(ad.id) ? "#C94F4F" : "none"}
+                  />
+                </button>
                 <button
                   style={s.deleteBtn}
                   onClick={(e) => { e.stopPropagation(); handleDelete(ad.id); }}
@@ -270,9 +316,23 @@ export default function App() {
             <div style={s.detailCard} onClick={(e) => e.stopPropagation()}>
               <div style={s.formHeader}>
                 <span style={{ ...s.catTag, color: cat.pin }}>{cat.label}</span>
-                <button type="button" style={s.closeBtn} onClick={() => setSelectedAd(null)} aria-label="Закрыть">
-                  <X size={20} color="#5A4029" />
-                </button>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <button
+                    type="button"
+                    style={s.favoriteBtnDetail}
+                    onClick={() => toggleFavorite(selectedAd.id)}
+                    aria-label="В избранное"
+                  >
+                    <Heart
+                      size={20}
+                      color={favorites.includes(selectedAd.id) ? "#C94F4F" : "#8a7a63"}
+                      fill={favorites.includes(selectedAd.id) ? "#C94F4F" : "none"}
+                    />
+                  </button>
+                  <button type="button" style={s.closeBtn} onClick={() => setSelectedAd(null)} aria-label="Закрыть">
+                    <X size={20} color="#5A4029" />
+                  </button>
+                </div>
               </div>
 
               {photos.length > 0 && (
@@ -433,6 +493,8 @@ const s = {
   card: { position: "relative", background: "#FBF3E1", borderRadius: 4, padding: "22px 16px 14px", boxShadow: "0 6px 14px rgba(20,12,4,0.3)" },
   pin: { position: "absolute", top: -7, left: "50%", transform: "translateX(-50%)", width: 14, height: 14, borderRadius: "50%", boxShadow: "0 2px 3px rgba(0,0,0,0.4)" },
   deleteBtn: { position: "absolute", top: 8, right: 8, background: "transparent", border: "none", cursor: "pointer", padding: 4, zIndex: 2 },
+  favoriteBtn: { position: "absolute", top: 8, left: 8, background: "transparent", border: "none", cursor: "pointer", padding: 4, zIndex: 2 },
+  favoriteBtnDetail: { background: "transparent", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" },
   catTag: { fontSize: 11.5, fontWeight: 700, textTransform: "none", letterSpacing: 0.2 },
   cardPhotoWrap: { position: "relative", marginBottom: 8 },
   cardPhoto: { width: "100%", height: 160, objectFit: "cover", borderRadius: 3, display: "block" },

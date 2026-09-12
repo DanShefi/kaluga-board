@@ -50,6 +50,8 @@ function compressImage(file, maxWidth = 480, quality = 0.62) {
   });
 }
 
+const MAX_PHOTOS = 5;
+
 export default function App() {
   const [ads, setAds] = useState(null);
   const [error, setError] = useState(null);
@@ -57,13 +59,15 @@ export default function App() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
+  const [selectedAd, setSelectedAd] = useState(null);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
   const [form, setForm] = useState({
     title: "",
     category: "goods",
     price: "",
     description: "",
     contact: "",
-    photo: "",
+    photos: [],
   });
 
   useEffect(() => {
@@ -82,18 +86,30 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  async function handlePhoto(e) {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
+  async function handlePhotos(e) {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    const room = MAX_PHOTOS - form.photos.length;
+    if (room <= 0) {
+      setError(`Можно добавить не больше ${MAX_PHOTOS} фото.`);
+      e.target.value = "";
+      return;
+    }
+    const toProcess = files.slice(0, room);
     setPhotoBusy(true);
     try {
-      const dataUrl = await compressImage(file);
-      setForm((f) => ({ ...f, photo: dataUrl }));
+      const dataUrls = await Promise.all(toProcess.map((f) => compressImage(f)));
+      setForm((f) => ({ ...f, photos: [...f.photos, ...dataUrls] }));
     } catch (err) {
       setError("Не получилось обработать фото. Попробуй другое.");
     } finally {
       setPhotoBusy(false);
+      e.target.value = "";
     }
+  }
+
+  function removePhotoAt(index) {
+    setForm((f) => ({ ...f, photos: f.photos.filter((_, i) => i !== index) }));
   }
 
   async function handleSubmit(e) {
@@ -107,10 +123,10 @@ export default function App() {
         price: form.price.trim(),
         description: form.description.trim(),
         contact: form.contact.trim(),
-        photo: form.photo || "",
+        photos: form.photos || [],
         createdAt: Date.now(),
       });
-      setForm({ title: "", category: "goods", price: "", description: "", contact: "", photo: "" });
+      setForm({ title: "", category: "goods", price: "", description: "", contact: "", photos: [] });
       setShowForm(false);
     } catch (err) {
       console.error(err);
@@ -123,9 +139,15 @@ export default function App() {
   async function handleDelete(id) {
     try {
       await deleteDoc(doc(db, "ads", id));
+      setSelectedAd(null);
     } catch (err) {
       setError("Не удалось удалить объявление.");
     }
+  }
+
+  function openAd(ad) {
+    setSelectedAd(ad);
+    setLightboxIndex(0);
   }
 
   const visible = (ads || []).filter((a) => filter === "all" || a.category === filter);
@@ -137,11 +159,13 @@ export default function App() {
         * { box-sizing: border-box; }
         .kb-chip { transition: transform .15s ease, box-shadow .15s ease; }
         .kb-chip:active { transform: scale(0.96); }
-        .kb-card { transition: transform .18s ease, box-shadow .18s ease; }
+        .kb-card { transition: transform .18s ease, box-shadow .18s ease; cursor: pointer; }
         .kb-card:hover { transform: rotate(0deg) translateY(-3px) !important; box-shadow: 0 10px 20px rgba(30,20,10,0.35); }
         .kb-fab { transition: transform .15s ease; }
         .kb-fab:active { transform: scale(0.92); }
         .kb-input:focus, .kb-select:focus, .kb-textarea:focus { outline: 2px solid #C97B3E; outline-offset: 1px; }
+        .kb-thumb { transition: transform .12s ease, opacity .12s ease; cursor: pointer; }
+        .kb-thumb:hover { opacity: 0.85; }
       `}</style>
 
       <header style={s.header}>
@@ -181,13 +205,31 @@ export default function App() {
         <div style={s.grid}>
           {visible.map((ad) => {
             const cat = catInfo(ad.category);
+            const photos = ad.photos && ad.photos.length ? ad.photos : (ad.photo ? [ad.photo] : []);
             return (
-              <div key={ad.id} className="kb-card" style={{ ...s.card, transform: `rotate(${seededRotation(ad.id)}deg)` }}>
+              <div
+                key={ad.id}
+                className="kb-card"
+                style={{ ...s.card, transform: `rotate(${seededRotation(ad.id)}deg)` }}
+                onClick={() => openAd(ad)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === "Enter") openAd(ad); }}
+              >
                 <div style={{ ...s.pin, background: cat.pin }} />
-                <button style={s.deleteBtn} onClick={() => handleDelete(ad.id)} aria-label="Удалить объявление">
+                <button
+                  style={s.deleteBtn}
+                  onClick={(e) => { e.stopPropagation(); handleDelete(ad.id); }}
+                  aria-label="Удалить объявление"
+                >
                   <X size={14} color="#8a7a63" />
                 </button>
-                {ad.photo && <img src={ad.photo} alt={ad.title} style={s.cardPhoto} />}
+                {photos[0] && (
+                  <div style={s.cardPhotoWrap}>
+                    <img src={photos[0]} alt={ad.title} style={s.cardPhoto} />
+                    {photos.length > 1 && <span style={s.photoCountBadge}>+{photos.length - 1}</span>}
+                  </div>
+                )}
                 <span style={{ ...s.catTag, color: cat.pin }}>{cat.label}</span>
                 <h3 style={s.cardTitle}>{ad.title}</h3>
                 {ad.price && <p style={s.price}>{ad.price} ₽</p>}
@@ -208,7 +250,63 @@ export default function App() {
         <Plus size={26} color="#FBF3E1" />
       </button>
 
-      {error && <div style={s.errorToast}>{error}</div>}
+      {error && <div style={s.errorToast} onClick={() => setError(null)}>{error}</div>}
+
+      {selectedAd && (() => {
+        const cat = catInfo(selectedAd.category);
+        const photos = selectedAd.photos && selectedAd.photos.length
+          ? selectedAd.photos
+          : (selectedAd.photo ? [selectedAd.photo] : []);
+        return (
+          <div style={s.overlay} onClick={() => setSelectedAd(null)}>
+            <div style={s.detailCard} onClick={(e) => e.stopPropagation()}>
+              <div style={s.formHeader}>
+                <span style={{ ...s.catTag, color: cat.pin }}>{cat.label}</span>
+                <button type="button" style={s.closeBtn} onClick={() => setSelectedAd(null)} aria-label="Закрыть">
+                  <X size={20} color="#5A4029" />
+                </button>
+              </div>
+
+              {photos.length > 0 && (
+                <div>
+                  <img src={photos[lightboxIndex]} alt={selectedAd.title} style={s.detailMainPhoto} />
+                  {photos.length > 1 && (
+                    <div style={s.thumbRow}>
+                      {photos.map((p, i) => (
+                        <img
+                          key={i}
+                          src={p}
+                          alt={`фото ${i + 1}`}
+                          className="kb-thumb"
+                          style={{ ...s.thumb, border: i === lightboxIndex ? "2px solid #C97B3E" : "2px solid transparent" }}
+                          onClick={() => setLightboxIndex(i)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <h2 style={s.detailTitle}>{selectedAd.title}</h2>
+              {selectedAd.price && <p style={s.detailPrice}>{selectedAd.price} ₽</p>}
+              {selectedAd.description && <p style={s.detailDesc}>{selectedAd.description}</p>}
+
+              <div style={s.detailContactRow}>
+                <Phone size={14} style={{ marginRight: 6 }} />
+                <span>{selectedAd.contact}</span>
+              </div>
+
+              <button
+                type="button"
+                style={s.deleteFullBtn}
+                onClick={() => handleDelete(selectedAd.id)}
+              >
+                Удалить объявление
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {showForm && (
         <div style={s.overlay} onClick={() => setShowForm(false)}>
@@ -232,15 +330,27 @@ export default function App() {
               ))}
             </select>
 
-            <label style={s.label}>Фото (необязательно)</label>
-            <input className="kb-input" style={s.fileInput} type="file" accept="image/*" onChange={handlePhoto} />
+            <label style={s.label}>Фото (до {MAX_PHOTOS} штук, необязательно)</label>
+            <input
+              className="kb-input"
+              style={s.fileInput}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handlePhotos}
+              disabled={form.photos.length >= MAX_PHOTOS}
+            />
             {photoBusy && <p style={s.photoStatus}>Обрабатываем фото…</p>}
-            {form.photo && !photoBusy && (
-              <div style={s.photoPreviewWrap}>
-                <img src={form.photo} alt="превью" style={s.photoPreview} />
-                <button type="button" style={s.removePhotoBtn} onClick={() => setForm({ ...form, photo: "" })}>
-                  Убрать фото
-                </button>
+            {form.photos.length > 0 && !photoBusy && (
+              <div style={s.photoGrid}>
+                {form.photos.map((p, i) => (
+                  <div key={i} style={s.photoPreviewWrap}>
+                    <img src={p} alt={`превью ${i + 1}`} style={s.photoPreview} />
+                    <button type="button" style={s.removePhotoBtn} onClick={() => removePhotoAt(i)}>
+                      Убрать
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -291,23 +401,35 @@ const s = {
   grid: { display: "grid", gridTemplateColumns: "1fr", gap: 20, marginTop: 8 },
   card: { position: "relative", background: "#FBF3E1", borderRadius: 4, padding: "22px 16px 14px", boxShadow: "0 6px 14px rgba(20,12,4,0.3)" },
   pin: { position: "absolute", top: -7, left: "50%", transform: "translateX(-50%)", width: 14, height: 14, borderRadius: "50%", boxShadow: "0 2px 3px rgba(0,0,0,0.4)" },
-  deleteBtn: { position: "absolute", top: 8, right: 8, background: "transparent", border: "none", cursor: "pointer", padding: 4 },
+  deleteBtn: { position: "absolute", top: 8, right: 8, background: "transparent", border: "none", cursor: "pointer", padding: 4, zIndex: 2 },
   catTag: { fontSize: 11.5, fontWeight: 700, textTransform: "none", letterSpacing: 0.2 },
-  cardPhoto: { width: "100%", height: 160, objectFit: "cover", borderRadius: 3, marginBottom: 8, display: "block" },
+  cardPhotoWrap: { position: "relative", marginBottom: 8 },
+  cardPhoto: { width: "100%", height: 160, objectFit: "cover", borderRadius: 3, display: "block" },
+  photoCountBadge: { position: "absolute", bottom: 6, right: 6, background: "rgba(0,0,0,0.65)", color: "#FBF3E1", fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 999 },
   fileInput: { width: "100%", fontSize: 13, color: "#5A4A38", padding: "6px 0" },
   photoStatus: { fontSize: 12, color: "#8a7a63", margin: "4px 0 0" },
-  photoPreviewWrap: { marginTop: 8, display: "flex", alignItems: "center", gap: 10 },
+  photoGrid: { display: "flex", flexWrap: "wrap", gap: 10, marginTop: 8 },
+  photoPreviewWrap: { display: "flex", flexDirection: "column", alignItems: "center", gap: 5 },
   photoPreview: { width: 64, height: 64, objectFit: "cover", borderRadius: 6, border: "1px solid #D9C9AE" },
-  removePhotoBtn: { background: "transparent", border: "1px solid #D9C9AE", borderRadius: 6, padding: "5px 10px", fontSize: 12, color: "#6B5A45", cursor: "pointer" },
+  removePhotoBtn: { background: "transparent", border: "1px solid #D9C9AE", borderRadius: 6, padding: "3px 8px", fontSize: 11, color: "#6B5A45", cursor: "pointer" },
   cardTitle: { fontSize: 19, color: "#2E2013", margin: "4px 0 2px", fontWeight: 700, lineHeight: 1.25 },
   price: { fontSize: 16, color: "#3A2A18", fontWeight: 700, margin: "2px 0 6px" },
   desc: { fontSize: 13.5, color: "#5A4A38", lineHeight: 1.4, margin: "0 0 10px" },
   cardFooter: { borderTop: "1px dashed #C9B896", paddingTop: 8, marginTop: 4 },
   contact: { fontSize: 12.5, color: "#6B5A45" },
   fab: { position: "fixed", right: 20, bottom: 24, width: 56, height: 56, borderRadius: "50%", background: "#C97B3E", border: "none", boxShadow: "0 6px 16px rgba(0,0,0,0.4)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
-  errorToast: { position: "fixed", bottom: 90, left: "50%", transform: "translateX(-50%)", background: "#3A2A18", color: "#FBF3E1", padding: "8px 16px", borderRadius: 8, fontSize: 13, maxWidth: "90%", textAlign: "center" },
+  errorToast: { position: "fixed", bottom: 90, left: "50%", transform: "translateX(-50%)", background: "#3A2A18", color: "#FBF3E1", padding: "8px 16px", borderRadius: 8, fontSize: 13, maxWidth: "90%", textAlign: "center", cursor: "pointer" },
   overlay: { position: "fixed", inset: 0, background: "rgba(20,12,4,0.55)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 10 },
   formCard: { background: "#FBF3E1", width: "100%", maxWidth: 480, borderRadius: "16px 16px 0 0", padding: "18px 20px 24px", maxHeight: "88vh", overflowY: "auto" },
+  detailCard: { background: "#FBF3E1", width: "100%", maxWidth: 480, borderRadius: "16px 16px 0 0", padding: "18px 20px 26px", maxHeight: "90vh", overflowY: "auto" },
+  detailMainPhoto: { width: "100%", height: 240, objectFit: "cover", borderRadius: 8, display: "block" },
+  thumbRow: { display: "flex", gap: 8, marginTop: 8, overflowX: "auto" },
+  thumb: { width: 52, height: 52, objectFit: "cover", borderRadius: 6, flexShrink: 0 },
+  detailTitle: { fontFamily: "'Caveat', cursive", fontSize: 28, color: "#2E2013", margin: "14px 0 2px", fontWeight: 700 },
+  detailPrice: { fontSize: 19, color: "#3A2A18", fontWeight: 700, margin: "2px 0 10px" },
+  detailDesc: { fontSize: 14.5, color: "#5A4A38", lineHeight: 1.5, margin: "0 0 14px", whiteSpace: "pre-wrap" },
+  detailContactRow: { display: "flex", alignItems: "center", fontSize: 14, color: "#3A2A18", fontWeight: 700, borderTop: "1px dashed #C9B896", paddingTop: 12, marginBottom: 16 },
+  deleteFullBtn: { width: "100%", padding: "11px", borderRadius: 10, border: "1.5px solid #C94F4F", background: "transparent", color: "#C94F4F", fontSize: 14, fontWeight: 700, cursor: "pointer" },
   formHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
   formTitle: { fontFamily: "'Caveat', cursive", fontSize: 26, color: "#3A2A18", margin: 0, fontWeight: 700 },
   closeBtn: { background: "transparent", border: "none", cursor: "pointer", padding: 4 },

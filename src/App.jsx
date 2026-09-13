@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { Plus, X, Phone, MapPin, ChevronLeft, ChevronRight, Heart, Car, Home, Briefcase, Wrench, ShoppingBag, LayoutGrid } from "lucide-react";
-import { db } from "./firebase.js";
+import { Plus, X, Phone, MapPin, ChevronLeft, ChevronRight, Heart, Car, Home, Briefcase, Wrench, ShoppingBag, LayoutGrid, LogOut, UserRound } from "lucide-react";
+import { db, auth } from "./firebase.js";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import {
   collection,
   addDoc,
@@ -10,7 +11,8 @@ import {
   query,
   orderBy,
 } from "firebase/firestore";
-
+import AuthModal from "./AuthModal.js";
+ 
 const CATEGORIES = [
   { id: "transport", label: "Транспорт", pin: "#3E6FA5", icon: Car },
   { id: "realty", label: "Недвижимость", pin: "#5C8F4E", icon: Home },
@@ -18,16 +20,21 @@ const CATEGORIES = [
   { id: "services", label: "Услуги", pin: "#9B5C8F", icon: Wrench },
   { id: "goods", label: "Товары", pin: "#C94F4F", icon: ShoppingBag },
 ];
-
+ 
 const catInfo = (id) => CATEGORIES.find((c) => c.id === id) || CATEGORIES[4];
-
+ 
 function seededRotation(seed) {
   const n = String(seed)
     .split("")
     .reduce((a, c) => a + c.charCodeAt(0), 0);
   return ((n % 7) - 3) * 0.7;
 }
-
+ 
+function displayNameFor(user) {
+  if (!user) return "";
+  return user.displayName || user.email || user.phoneNumber || "Гость";
+}
+ 
 function compressImage(file, maxWidth = 480, quality = 0.62) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -49,10 +56,10 @@ function compressImage(file, maxWidth = 480, quality = 0.62) {
     reader.readAsDataURL(file);
   });
 }
-
+ 
 const MAX_PHOTOS = 5;
 const FAVORITES_KEY = "kaluga-board-favorites";
-
+ 
 function loadFavorites() {
   try {
     const raw = localStorage.getItem(FAVORITES_KEY);
@@ -61,12 +68,14 @@ function loadFavorites() {
     return [];
   }
 }
-
+ 
 export default function App() {
   const [ads, setAds] = useState(null);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
   const [saving, setSaving] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [selectedAd, setSelectedAd] = useState(null);
@@ -80,7 +89,7 @@ export default function App() {
     contact: "",
     photos: [],
   });
-
+ 
   useEffect(() => {
     try {
       localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
@@ -88,7 +97,14 @@ export default function App() {
       // ignore storage errors
     }
   }, [favorites]);
-
+ 
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
+ 
   useEffect(() => {
     const q = query(collection(db, "ads"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(
@@ -104,7 +120,7 @@ export default function App() {
     );
     return () => unsubscribe();
   }, []);
-
+ 
   async function handlePhotos(e) {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
@@ -126,11 +142,15 @@ export default function App() {
       e.target.value = "";
     }
   }
-
+ 
   function removePhotoAt(index) {
     setForm((f) => ({ ...f, photos: f.photos.filter((_, i) => i !== index) }));
   }
-
+ 
+  function openComposer() {
+    setShowForm(true);
+  }
+ 
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.title.trim() || !form.contact.trim()) return;
@@ -144,6 +164,8 @@ export default function App() {
         contact: form.contact.trim(),
         photos: form.photos || [],
         createdAt: Date.now(),
+        ownerId: currentUser ? currentUser.uid : null,
+        ownerName: currentUser ? displayNameFor(currentUser) : null,
       });
       setForm({ title: "", category: "goods", price: "", description: "", contact: "", photos: [] });
       setShowForm(false);
@@ -154,7 +176,7 @@ export default function App() {
       setSaving(false);
     }
   }
-
+ 
   async function handleDelete(id) {
     try {
       await deleteDoc(doc(db, "ads", id));
@@ -163,29 +185,33 @@ export default function App() {
       setError("Не удалось удалить объявление.");
     }
   }
-
+ 
   function openAd(ad) {
     setSelectedAd(ad);
     setLightboxIndex(0);
   }
-
+ 
   function showPrevPhoto(photosLength) {
     setLightboxIndex((i) => (i - 1 + photosLength) % photosLength);
   }
-
+ 
   function showNextPhoto(photosLength) {
     setLightboxIndex((i) => (i + 1) % photosLength);
   }
-
+ 
   function toggleFavorite(id) {
     setFavorites((favs) => (favs.includes(id) ? favs.filter((f) => f !== id) : [...favs, id]));
   }
-
+ 
+  function canDeleteAd(ad) {
+    return !!currentUser && (!ad.ownerId || ad.ownerId === currentUser.uid);
+  }
+ 
   const visible = (ads || []).filter((a) => {
     if (filter === "favorites") return favorites.includes(a.id);
     return filter === "all" || a.category === filter;
   });
-
+ 
   return (
     <div style={s.page}>
       <style>{`
@@ -201,14 +227,29 @@ export default function App() {
         .kb-thumb { transition: transform .12s ease, opacity .12s ease; cursor: pointer; }
         .kb-thumb:hover { opacity: 0.85; }
       `}</style>
-
+ 
       <header style={s.header}>
         <div style={s.headerInner}>
+          <div style={s.authRow}>
+            {currentUser ? (
+              <div style={s.userChip}>
+                <UserRound size={14} style={{ marginRight: 5, verticalAlign: "-2px", flexShrink: 0 }} />
+                <span style={s.userName}>{displayNameFor(currentUser)}</span>
+                <button style={s.logoutBtn} onClick={() => signOut(auth)} aria-label="Выйти">
+                  <LogOut size={14} />
+                </button>
+              </div>
+            ) : (
+              <button style={s.loginBtn} onClick={() => setShowAuth(true)}>
+                Войти
+              </button>
+            )}
+          </div>
           <h1 style={s.title}>Калуга · доска объявлений</h1>
           <p style={s.subtitle}>Место для локальных объявлений — от соседей соседям</p>
         </div>
       </header>
-
+ 
       <div style={s.chipsRow}>
         <button className="kb-chip" style={{ ...s.chip, ...(filter === "all" ? s.chipActive : {}) }} onClick={() => setFilter("all")}>
           <LayoutGrid size={14} style={s.chipIcon} />
@@ -236,10 +277,10 @@ export default function App() {
           ♥ Избранное
         </button>
       </div>
-
+ 
       <main style={s.board}>
         {ads === null && <p style={s.hint}>Открываем доску…</p>}
-
+ 
         {ads !== null && visible.length === 0 && (
           <div style={s.empty}>
             <p style={s.emptyText}>
@@ -249,11 +290,12 @@ export default function App() {
             </p>
           </div>
         )}
-
+ 
         <div style={s.grid}>
           {visible.map((ad) => {
             const cat = catInfo(ad.category);
             const photos = ad.photos && ad.photos.length ? ad.photos : (ad.photo ? [ad.photo] : []);
+            const showDelete = canDeleteAd(ad);
             return (
               <div
                 key={ad.id}
@@ -265,7 +307,7 @@ export default function App() {
                 onKeyDown={(e) => { if (e.key === "Enter") openAd(ad); }}
               >
                 <div style={{ ...s.pin, background: cat.pin }} />
-
+ 
                 <div style={s.cardPhotoWrap}>
                   {photos[0] ? (
                     <img src={photos[0]} alt={ad.title} style={s.cardPhoto} />
@@ -290,15 +332,17 @@ export default function App() {
                       fill={favorites.includes(ad.id) ? "#C94F4F" : "none"}
                     />
                   </button>
-                  <button
-                    style={s.deleteBtnOnPhoto}
-                    onClick={(e) => { e.stopPropagation(); handleDelete(ad.id); }}
-                    aria-label="Удалить объявление"
-                  >
-                    <X size={13} color="#8a7a63" />
-                  </button>
+                  {showDelete && (
+                    <button
+                      style={s.deleteBtnOnPhoto}
+                      onClick={(e) => { e.stopPropagation(); handleDelete(ad.id); }}
+                      aria-label="Удалить объявление"
+                    >
+                      <X size={13} color="#8a7a63" />
+                    </button>
+                  )}
                 </div>
-
+ 
                 <div style={s.cardBody}>
                   <h3 style={s.cardTitle}>{ad.title}</h3>
                   {ad.price && <p style={s.price}>{ad.price} ₽</p>}
@@ -314,18 +358,19 @@ export default function App() {
           })}
         </div>
       </main>
-
-      <button className="kb-fab" style={s.fab} onClick={() => setShowForm(true)} aria-label="Разместить объявление">
+ 
+      <button className="kb-fab" style={s.fab} onClick={openComposer} aria-label="Разместить объявление">
         <Plus size={26} color="#FBF3E1" />
       </button>
-
+ 
       {error && <div style={s.errorToast} onClick={() => setError(null)}>{error}</div>}
-
+ 
       {selectedAd && (() => {
         const cat = catInfo(selectedAd.category);
         const photos = selectedAd.photos && selectedAd.photos.length
           ? selectedAd.photos
           : (selectedAd.photo ? [selectedAd.photo] : []);
+        const showDelete = canDeleteAd(selectedAd);
         return (
           <div style={s.overlayCenter} onClick={() => setSelectedAd(null)}>
             <div style={s.detailCard} onClick={(e) => e.stopPropagation()}>
@@ -352,7 +397,7 @@ export default function App() {
                   </button>
                 </div>
               </div>
-
+ 
               {photos.length > 0 && (
                 <div>
                   <div style={s.detailPhotoWrap}>
@@ -395,28 +440,36 @@ export default function App() {
                   )}
                 </div>
               )}
-
+ 
               <h2 style={s.detailTitle}>{selectedAd.title}</h2>
               {selectedAd.price && <p style={s.detailPrice}>{selectedAd.price} ₽</p>}
               {selectedAd.description && <p style={s.detailDesc}>{selectedAd.description}</p>}
-
+              {selectedAd.ownerName && (
+                <p style={s.detailOwner}>
+                  <UserRound size={12} style={{ marginRight: 4, verticalAlign: "-2px" }} />
+                  {selectedAd.ownerName}
+                </p>
+              )}
+ 
               <div style={s.detailContactRow}>
                 <Phone size={14} style={{ marginRight: 6 }} />
                 <span>{selectedAd.contact}</span>
               </div>
-
-              <button
-                type="button"
-                style={s.deleteFullBtn}
-                onClick={() => handleDelete(selectedAd.id)}
-              >
-                Удалить объявление
-              </button>
+ 
+              {showDelete && (
+                <button
+                  type="button"
+                  style={s.deleteFullBtn}
+                  onClick={() => handleDelete(selectedAd.id)}
+                >
+                  Удалить объявление
+                </button>
+              )}
             </div>
           </div>
         );
       })()}
-
+ 
       {showForm && (
         <div style={s.overlay} onClick={() => setShowForm(false)}>
           <form style={s.formCard} onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
@@ -426,10 +479,10 @@ export default function App() {
                 <X size={18} color="#5A4029" />
               </button>
             </div>
-
+ 
             <label style={s.label}>Заголовок</label>
             <input className="kb-input" style={s.input} value={form.title} maxLength={80} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Например: Продам велосипед" required />
-
+ 
             <label style={s.label}>Категория</label>
             <select className="kb-select" style={s.input} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
               {CATEGORIES.map((c) => (
@@ -438,7 +491,7 @@ export default function App() {
                 </option>
               ))}
             </select>
-
+ 
             <label style={s.label}>Фото (до {MAX_PHOTOS} штук, необязательно)</label>
             <input
               className="kb-input"
@@ -462,16 +515,16 @@ export default function App() {
                 ))}
               </div>
             )}
-
+ 
             <label style={s.label}>Цена (необязательно)</label>
             <input className="kb-input" style={s.input} value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value.replace(/[^0-9]/g, "") })} placeholder="3000" inputMode="numeric" />
-
+ 
             <label style={s.label}>Описание</label>
             <textarea className="kb-textarea" style={{ ...s.input, height: 72, resize: "none" }} value={form.description} maxLength={280} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Пара слов о том, что предлагаешь" />
-
+ 
             <label style={s.label}>Контакт</label>
             <input className="kb-input" style={s.input} value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} placeholder="Телефон или Telegram" required />
-
+ 
             <button type="submit" style={s.submitBtn} disabled={saving}>
               {saving ? "Публикуем…" : "Разместить объявление"}
             </button>
@@ -482,10 +535,12 @@ export default function App() {
           </form>
         </div>
       )}
+ 
+      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
     </div>
   );
 }
-
+ 
 const s = {
   page: {
     minHeight: "100vh",
@@ -496,8 +551,13 @@ const s = {
     paddingBottom: 100,
     position: "relative",
   },
-  header: { padding: "28px 20px 18px", textAlign: "center" },
+  header: { padding: "16px 20px 18px", textAlign: "center" },
   headerInner: { maxWidth: 640, margin: "0 auto" },
+  authRow: { display: "flex", justifyContent: "flex-end", marginBottom: 10 },
+  loginBtn: { padding: "6px 16px", borderRadius: 999, border: "1.5px solid rgba(251,243,225,0.5)", background: "rgba(0,0,0,0.15)", color: "#F0E6D2", fontSize: 13, fontWeight: 700, cursor: "pointer" },
+  userChip: { display: "flex", alignItems: "center", gap: 6, padding: "5px 8px 5px 12px", borderRadius: 999, background: "rgba(0,0,0,0.15)", color: "#F0E6D2", fontSize: 12.5 },
+  userName: { maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  logoutBtn: { background: "transparent", border: "none", color: "#F0E6D2", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" },
   title: { fontFamily: "'Caveat', cursive", fontSize: 40, color: "#FBF3E1", margin: 0, fontWeight: 700, lineHeight: 1.1 },
   subtitle: { color: "#D9C9AE", fontSize: 13.5, margin: "6px 0 0" },
   chipsRow: { display: "flex", flexWrap: "wrap", gap: 8, padding: "4px 16px 14px", maxWidth: 640, margin: "0 auto" },
@@ -508,11 +568,10 @@ const s = {
   empty: { textAlign: "center", padding: "40px 20px", background: "rgba(0,0,0,0.15)", borderRadius: 12, marginTop: 12 },
   emptyText: { color: "#E8DBC2", fontSize: 14.5, margin: 0 },
   grid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 8 },
-
-  /* --- card: rebuilt in Avito-style layout, cozy palette kept --- */
+ 
   card: { position: "relative", background: "#FBF3E1", borderRadius: 14, padding: 0, overflow: "hidden", boxShadow: "0 6px 14px rgba(20,12,4,0.3)" },
   pin: { position: "absolute", top: 4, left: "50%", transform: "translateX(-50%)", width: 14, height: 14, borderRadius: "50%", boxShadow: "0 2px 3px rgba(0,0,0,0.4)", zIndex: 3 },
-
+ 
   cardPhotoWrap: { position: "relative", width: "100%", aspectRatio: "4 / 3", background: "#EFE6D2", overflow: "hidden" },
   cardPhoto: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
   cardPhotoPlaceholder: { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" },
@@ -520,14 +579,13 @@ const s = {
   catBadge: { position: "absolute", left: 8, bottom: 8, display: "inline-flex", alignItems: "center", color: "#FBF3E1", fontSize: 10.5, fontWeight: 700, padding: "4px 9px", borderRadius: 999, boxShadow: "0 2px 5px rgba(0,0,0,0.3)", zIndex: 2 },
   favoriteBtnOnPhoto: { position: "absolute", top: 8, right: 8, width: 28, height: 28, borderRadius: "50%", background: "rgba(251,243,225,0.92)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2, boxShadow: "0 2px 5px rgba(0,0,0,0.25)" },
   deleteBtnOnPhoto: { position: "absolute", top: 8, left: 8, width: 24, height: 24, borderRadius: "50%", background: "rgba(251,243,225,0.85)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 },
-
+ 
   cardBody: { padding: "10px 12px 12px" },
   cardTitle: { fontSize: 14, color: "#2E2013", margin: "0 0 4px", fontWeight: 700, lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", minHeight: 36 },
   price: { fontSize: 16, color: "#1F1408", fontWeight: 800, margin: "0 0 6px" },
   cardFooter: { borderTop: "1px dashed #C9B896", paddingTop: 8, marginTop: 2 },
   contact: { fontSize: 11, color: "#6B5A45" },
-  /* --- end card block --- */
-
+ 
   catTag: { display: "inline-flex", alignItems: "center", fontSize: 11.5, fontWeight: 700, textTransform: "none", letterSpacing: 0.2 },
   catTagIcon: { marginRight: 4, verticalAlign: "-2px" },
   chipIcon: { marginRight: 5, verticalAlign: "-2px" },
@@ -552,7 +610,8 @@ const s = {
   thumb: { width: 52, height: 52, objectFit: "cover", borderRadius: 6, flexShrink: 0 },
   detailTitle: { fontFamily: "'Caveat', cursive", fontSize: 28, color: "#2E2013", margin: "14px 0 2px", fontWeight: 700 },
   detailPrice: { fontSize: 19, color: "#3A2A18", fontWeight: 700, margin: "2px 0 10px" },
-  detailDesc: { fontSize: 14.5, color: "#5A4A38", lineHeight: 1.5, margin: "0 0 14px", whiteSpace: "pre-wrap" },
+  detailDesc: { fontSize: 14.5, color: "#5A4A38", lineHeight: 1.5, margin: "0 0 8px", whiteSpace: "pre-wrap" },
+  detailOwner: { fontSize: 12.5, color: "#8a7a63", margin: "0 0 14px" },
   detailContactRow: { display: "flex", alignItems: "center", fontSize: 14, color: "#3A2A18", fontWeight: 700, borderTop: "1px dashed #C9B896", paddingTop: 12, marginBottom: 16 },
   deleteFullBtn: { width: "100%", padding: "11px", borderRadius: 10, border: "1.5px solid #C94F4F", background: "transparent", color: "#C94F4F", fontSize: 14, fontWeight: 700, cursor: "pointer" },
   formHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },

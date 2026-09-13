@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Plus, X, Phone, MapPin, ChevronLeft, ChevronRight, Heart, Car, Home, Briefcase, Wrench, ShoppingBag, LayoutGrid, LogOut, UserRound } from "lucide-react";
-import { db, auth } from "./firebase.js";
+import { db, auth } from "./firebase.jsx";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import {
   collection,

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, X, Phone, MapPin, ChevronLeft, ChevronRight, Heart } from "lucide-react";
+import { Plus, X, Phone, MapPin, ChevronLeft, ChevronRight, Heart, Car, Home, Briefcase, Wrench, ShoppingBag, LayoutGrid } from "lucide-react";
 import { db } from "./firebase.js";
 import {
   collection,
@@ -12,11 +12,11 @@ import {
 } from "firebase/firestore";
 
 const CATEGORIES = [
-  { id: "transport", label: "Транспорт", pin: "#3E6FA5" },
-  { id: "realty", label: "Недвижимость", pin: "#5C8F4E" },
-  { id: "jobs", label: "Работа", pin: "#C97B3E" },
-  { id: "services", label: "Услуги", pin: "#9B5C8F" },
-  { id: "goods", label: "Товары", pin: "#C94F4F" },
+  { id: "transport", label: "Транспорт", pin: "#3E6FA5", icon: Car },
+  { id: "realty", label: "Недвижимость", pin: "#5C8F4E", icon: Home },
+  { id: "jobs", label: "Работа", pin: "#C97B3E", icon: Briefcase },
+  { id: "services", label: "Услуги", pin: "#9B5C8F", icon: Wrench },
+  { id: "goods", label: "Товары", pin: "#C94F4F", icon: ShoppingBag },
 ];
 
 const catInfo = (id) => CATEGORIES.find((c) => c.id === id) || CATEGORIES[4];
@@ -211,18 +211,23 @@ export default function App() {
 
       <div style={s.chipsRow}>
         <button className="kb-chip" style={{ ...s.chip, ...(filter === "all" ? s.chipActive : {}) }} onClick={() => setFilter("all")}>
+          <LayoutGrid size={14} style={s.chipIcon} />
           Все
         </button>
-        {CATEGORIES.map((c) => (
-          <button
-            key={c.id}
-            className="kb-chip"
-            style={{ ...s.chip, ...(filter === c.id ? { ...s.chipActive, borderColor: c.pin } : {}) }}
-            onClick={() => setFilter(c.id)}
-          >
-            {c.label}
-          </button>
-        ))}
+        {CATEGORIES.map((c) => {
+          const Icon = c.icon;
+          return (
+            <button
+              key={c.id}
+              className="kb-chip"
+              style={{ ...s.chip, ...(filter === c.id ? { ...s.chipActive, borderColor: c.pin } : {}) }}
+              onClick={() => setFilter(c.id)}
+            >
+              <Icon size={14} style={s.chipIcon} />
+              {c.label}
+            </button>
+          );
+        })}
         <button
           className="kb-chip"
           style={{ ...s.chip, ...(filter === "favorites" ? s.chipActive : {}) }}
@@ -284,7 +289,10 @@ export default function App() {
                     {photos.length > 1 && <span style={s.photoCountBadge}>+{photos.length - 1}</span>}
                   </div>
                 )}
-                <span style={{ ...s.catTag, color: cat.pin }}>{cat.label}</span>
+                <span style={{ ...s.catTag, color: cat.pin }}>
+                  <cat.icon size={13} style={s.catTagIcon} />
+                  {cat.label}
+                </span>
                 <h3 style={s.cardTitle}>{ad.title}</h3>
                 {ad.price && <p style={s.price}>{ad.price} ₽</p>}
                 {ad.description && <p style={s.desc}>{ad.description}</p>}
@@ -315,7 +323,10 @@ export default function App() {
           <div style={s.overlayCenter} onClick={() => setSelectedAd(null)}>
             <div style={s.detailCard} onClick={(e) => e.stopPropagation()}>
               <div style={s.formHeader}>
-                <span style={{ ...s.catTag, color: cat.pin }}>{cat.label}</span>
+                <span style={{ ...s.catTag, color: cat.pin }}>
+                  <cat.icon size={14} style={s.catTagIcon} />
+                  {cat.label}
+                </span>
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                   <button
                     type="button"
@@ -495,7 +506,9 @@ const s = {
   deleteBtn: { position: "absolute", top: 8, right: 8, background: "transparent", border: "none", cursor: "pointer", padding: 4, zIndex: 2 },
   favoriteBtn: { position: "absolute", top: 8, left: 8, background: "transparent", border: "none", cursor: "pointer", padding: 4, zIndex: 2 },
   favoriteBtnDetail: { background: "transparent", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" },
-  catTag: { fontSize: 11.5, fontWeight: 700, textTransform: "none", letterSpacing: 0.2 },
+  catTag: { display: "inline-flex", alignItems: "center", fontSize: 11.5, fontWeight: 700, textTransform: "none", letterSpacing: 0.2 },
+  catTagIcon: { marginRight: 4, verticalAlign: "-2px" },
+  chipIcon: { marginRight: 5, verticalAlign: "-2px" },
   cardPhotoWrap: { position: "relative", marginBottom: 8 },
   cardPhoto: { width: "100%", height: 160, objectFit: "cover", borderRadius: 3, display: "block" },
   photoCountBadge: { position: "absolute", bottom: 6, right: 6, background: "rgba(0,0,0,0.65)", color: "#FBF3E1", fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 999 },

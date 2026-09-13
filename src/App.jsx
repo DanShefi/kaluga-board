@@ -265,42 +265,49 @@ export default function App() {
                 onKeyDown={(e) => { if (e.key === "Enter") openAd(ad); }}
               >
                 <div style={{ ...s.pin, background: cat.pin }} />
-                <button
-                  style={s.favoriteBtn}
-                  onClick={(e) => { e.stopPropagation(); toggleFavorite(ad.id); }}
-                  aria-label="В избранное"
-                >
-                  <Heart
-                    size={16}
-                    color={favorites.includes(ad.id) ? "#C94F4F" : "#8a7a63"}
-                    fill={favorites.includes(ad.id) ? "#C94F4F" : "none"}
-                  />
-                </button>
-                <button
-                  style={s.deleteBtn}
-                  onClick={(e) => { e.stopPropagation(); handleDelete(ad.id); }}
-                  aria-label="Удалить объявление"
-                >
-                  <X size={14} color="#8a7a63" />
-                </button>
-                {photos[0] && (
-                  <div style={s.cardPhotoWrap}>
+
+                <div style={s.cardPhotoWrap}>
+                  {photos[0] ? (
                     <img src={photos[0]} alt={ad.title} style={s.cardPhoto} />
-                    {photos.length > 1 && <span style={s.photoCountBadge}>+{photos.length - 1}</span>}
-                  </div>
-                )}
-                <span style={{ ...s.catTag, color: cat.pin }}>
-                  <cat.icon size={13} style={s.catTagIcon} />
-                  {cat.label}
-                </span>
-                <h3 style={s.cardTitle}>{ad.title}</h3>
-                {ad.price && <p style={s.price}>{ad.price} ₽</p>}
-                {ad.description && <p style={s.desc}>{ad.description}</p>}
-                <div style={s.cardFooter}>
-                  <span style={s.contact}>
-                    <Phone size={12} style={{ marginRight: 4, verticalAlign: "-2px" }} />
-                    {ad.contact}
+                  ) : (
+                    <div style={s.cardPhotoPlaceholder}>
+                      <cat.icon size={30} color={cat.pin} />
+                    </div>
+                  )}
+                  {photos.length > 1 && <span style={s.photoCountBadge}>+{photos.length - 1}</span>}
+                  <span style={{ ...s.catBadge, background: cat.pin }}>
+                    <cat.icon size={11} style={s.catTagIcon} />
+                    {cat.label}
                   </span>
+                  <button
+                    style={s.favoriteBtnOnPhoto}
+                    onClick={(e) => { e.stopPropagation(); toggleFavorite(ad.id); }}
+                    aria-label="В избранное"
+                  >
+                    <Heart
+                      size={15}
+                      color={favorites.includes(ad.id) ? "#C94F4F" : "#8a7a63"}
+                      fill={favorites.includes(ad.id) ? "#C94F4F" : "none"}
+                    />
+                  </button>
+                  <button
+                    style={s.deleteBtnOnPhoto}
+                    onClick={(e) => { e.stopPropagation(); handleDelete(ad.id); }}
+                    aria-label="Удалить объявление"
+                  >
+                    <X size={13} color="#8a7a63" />
+                  </button>
+                </div>
+
+                <div style={s.cardBody}>
+                  <h3 style={s.cardTitle}>{ad.title}</h3>
+                  {ad.price && <p style={s.price}>{ad.price} ₽</p>}
+                  <div style={s.cardFooter}>
+                    <span style={s.contact}>
+                      <Phone size={12} style={{ marginRight: 4, verticalAlign: "-2px" }} />
+                      {ad.contact}
+                    </span>
+                  </div>
                 </div>
               </div>
             );
@@ -501,28 +508,36 @@ const s = {
   empty: { textAlign: "center", padding: "40px 20px", background: "rgba(0,0,0,0.15)", borderRadius: 12, marginTop: 12 },
   emptyText: { color: "#E8DBC2", fontSize: 14.5, margin: 0 },
   grid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 8 },
-  card: { position: "relative", background: "#FBF3E1", borderRadius: 4, padding: "18px 10px 12px", boxShadow: "0 6px 14px rgba(20,12,4,0.3)" },
-  pin: { position: "absolute", top: -7, left: "50%", transform: "translateX(-50%)", width: 14, height: 14, borderRadius: "50%", boxShadow: "0 2px 3px rgba(0,0,0,0.4)" },
-  deleteBtn: { position: "absolute", top: 8, right: 8, background: "transparent", border: "none", cursor: "pointer", padding: 4, zIndex: 2 },
-  favoriteBtn: { position: "absolute", top: 8, left: 8, background: "transparent", border: "none", cursor: "pointer", padding: 4, zIndex: 2 },
-  favoriteBtnDetail: { background: "transparent", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" },
+
+  /* --- card: rebuilt in Avito-style layout, cozy palette kept --- */
+  card: { position: "relative", background: "#FBF3E1", borderRadius: 14, padding: 0, overflow: "hidden", boxShadow: "0 6px 14px rgba(20,12,4,0.3)" },
+  pin: { position: "absolute", top: 4, left: "50%", transform: "translateX(-50%)", width: 14, height: 14, borderRadius: "50%", boxShadow: "0 2px 3px rgba(0,0,0,0.4)", zIndex: 3 },
+
+  cardPhotoWrap: { position: "relative", width: "100%", aspectRatio: "4 / 3", background: "#EFE6D2", overflow: "hidden" },
+  cardPhoto: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
+  cardPhotoPlaceholder: { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" },
+  photoCountBadge: { position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.65)", color: "#FBF3E1", fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 999, zIndex: 2 },
+  catBadge: { position: "absolute", left: 8, bottom: 8, display: "inline-flex", alignItems: "center", color: "#FBF3E1", fontSize: 10.5, fontWeight: 700, padding: "4px 9px", borderRadius: 999, boxShadow: "0 2px 5px rgba(0,0,0,0.3)", zIndex: 2 },
+  favoriteBtnOnPhoto: { position: "absolute", top: 8, right: 8, width: 28, height: 28, borderRadius: "50%", background: "rgba(251,243,225,0.92)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2, boxShadow: "0 2px 5px rgba(0,0,0,0.25)" },
+  deleteBtnOnPhoto: { position: "absolute", top: 8, left: 8, width: 24, height: 24, borderRadius: "50%", background: "rgba(251,243,225,0.85)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 },
+
+  cardBody: { padding: "10px 12px 12px" },
+  cardTitle: { fontSize: 14, color: "#2E2013", margin: "0 0 4px", fontWeight: 700, lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", minHeight: 36 },
+  price: { fontSize: 16, color: "#1F1408", fontWeight: 800, margin: "0 0 6px" },
+  cardFooter: { borderTop: "1px dashed #C9B896", paddingTop: 8, marginTop: 2 },
+  contact: { fontSize: 11, color: "#6B5A45" },
+  /* --- end card block --- */
+
   catTag: { display: "inline-flex", alignItems: "center", fontSize: 11.5, fontWeight: 700, textTransform: "none", letterSpacing: 0.2 },
   catTagIcon: { marginRight: 4, verticalAlign: "-2px" },
   chipIcon: { marginRight: 5, verticalAlign: "-2px" },
-  cardPhotoWrap: { position: "relative", marginBottom: 8 },
-  cardPhoto: { width: "100%", height: 130, objectFit: "contain", background: "#EFE6D2", borderRadius: 3, display: "block" },
-  photoCountBadge: { position: "absolute", bottom: 6, right: 6, background: "rgba(0,0,0,0.65)", color: "#FBF3E1", fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 999 },
+  favoriteBtnDetail: { background: "transparent", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" },
   fileInput: { width: "100%", fontSize: 13, color: "#5A4A38", padding: "6px 0" },
   photoStatus: { fontSize: 12, color: "#8a7a63", margin: "4px 0 0" },
   photoGrid: { display: "flex", flexWrap: "wrap", gap: 10, marginTop: 8 },
   photoPreviewWrap: { display: "flex", flexDirection: "column", alignItems: "center", gap: 5 },
   photoPreview: { width: 64, height: 64, objectFit: "cover", borderRadius: 6, border: "1px solid #D9C9AE" },
   removePhotoBtn: { background: "transparent", border: "1px solid #D9C9AE", borderRadius: 6, padding: "3px 8px", fontSize: 11, color: "#6B5A45", cursor: "pointer" },
-  cardTitle: { fontSize: 15.5, color: "#2E2013", margin: "4px 0 2px", fontWeight: 700, lineHeight: 1.25 },
-  price: { fontSize: 14, color: "#3A2A18", fontWeight: 700, margin: "2px 0 6px" },
-  desc: { fontSize: 12, color: "#5A4A38", lineHeight: 1.35, margin: "0 0 8px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" },
-  cardFooter: { borderTop: "1px dashed #C9B896", paddingTop: 8, marginTop: 4 },
-  contact: { fontSize: 11, color: "#6B5A45" },
   fab: { position: "fixed", right: 20, bottom: 24, width: 56, height: 56, borderRadius: "50%", background: "#C97B3E", border: "none", boxShadow: "0 6px 16px rgba(0,0,0,0.4)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
   errorToast: { position: "fixed", bottom: 90, left: "50%", transform: "translateX(-50%)", background: "#3A2A18", color: "#FBF3E1", padding: "8px 16px", borderRadius: 8, fontSize: 13, maxWidth: "90%", textAlign: "center", cursor: "pointer" },
   overlay: { position: "fixed", inset: 0, background: "rgba(20,12,4,0.55)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 10 },

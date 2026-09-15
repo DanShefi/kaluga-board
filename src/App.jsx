@@ -617,6 +617,14 @@ export default function App() {
           .kb-container { max-width: 1180px; }
           .kb-grid { grid-template-columns: repeat(4, 1fr); }
         }
+        .kb-detail-grid { display: flex; flex-direction: column; gap: 16px; max-width: 900px; margin: 12px auto 0; }
+        .kb-detail-main { min-width: 0; }
+        .kb-detail-side { min-width: 0; }
+        @media (min-width: 860px) {
+          .kb-detail-grid { flex-direction: row; align-items: flex-start; max-width: 1020px; gap: 22px; }
+          .kb-detail-main { flex: 1.7; }
+          .kb-detail-side { flex: 1; position: sticky; top: 20px; }
+        }
       `}</style>
 
       <header style={s.header}>
@@ -784,159 +792,169 @@ export default function App() {
                 Назад
               </button>
 
-              <div style={s.pageCard}>
-                <div style={s.pageTopRow}>
-                  <span style={{ ...s.catTag, color: cat.pin }}>
-                    <cat.icon size={14} style={s.catTagIcon} />
-                    {cat.label}
-                  </span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <button
-                      type="button"
-                      style={s.favoriteBtnDetail}
-                      onClick={copyShareLink}
-                      aria-label="Скопировать ссылку на объявление"
-                    >
-                      {linkCopied ? <Check size={19} color="#5C8F4E" /> : <Share2 size={19} color="#8a7a63" />}
-                    </button>
-                    <button
-                      type="button"
-                      style={s.favoriteBtnDetail}
-                      onClick={() => toggleFavorite(selectedAd.id)}
-                      aria-label="В избранное"
-                    >
-                      <Heart
-                        size={20}
-                        color={favorites.includes(selectedAd.id) ? "#C94F4F" : "#8a7a63"}
-                        fill={favorites.includes(selectedAd.id) ? "#C94F4F" : "none"}
-                      />
-                    </button>
-                  </div>
-                </div>
-
-                {photos.length > 0 && (
-                  <div>
-                    <div style={s.detailPhotoWrap}>
-                      <img src={photos[lightboxIndex]} alt={selectedAd.title} style={s.detailMainPhoto} />
-                      {photos.length > 1 && (
-                        <>
-                          <button
-                            type="button"
-                            style={{ ...s.photoNavBtn, left: 8 }}
-                            onClick={() => showPrevPhoto(photos.length)}
-                            aria-label="Предыдущее фото"
-                          >
-                            <ChevronLeft size={22} color="#FBF3E1" />
-                          </button>
-                          <button
-                            type="button"
-                            style={{ ...s.photoNavBtn, right: 8 }}
-                            onClick={() => showNextPhoto(photos.length)}
-                            aria-label="Следующее фото"
-                          >
-                            <ChevronRight size={22} color="#FBF3E1" />
-                          </button>
-                          <span style={s.photoCounter}>{lightboxIndex + 1} / {photos.length}</span>
-                        </>
-                      )}
-                    </div>
-                    {photos.length > 1 && (
-                      <div style={s.thumbRow}>
-                        {photos.map((p, i) => (
-                          <img
-                            key={i}
-                            src={p}
-                            alt={`фото ${i + 1}`}
-                            className="kb-thumb"
-                            style={{ ...s.thumb, border: i === lightboxIndex ? "2px solid #C97B3E" : "2px solid transparent" }}
-                            onClick={() => setLightboxIndex(i)}
+              <div className="kb-detail-grid">
+                <div className="kb-detail-main">
+                  <div style={s.photoCard}>
+                    <div style={s.pageTopRow}>
+                      <span style={{ ...s.catTag, color: cat.pin }}>
+                        <cat.icon size={14} style={s.catTagIcon} />
+                        {cat.label}
+                      </span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <button
+                          type="button"
+                          style={s.favoriteBtnDetail}
+                          onClick={copyShareLink}
+                          aria-label="Скопировать ссылку на объявление"
+                        >
+                          {linkCopied ? <Check size={19} color="#5C8F4E" /> : <Share2 size={19} color="#8a7a63" />}
+                        </button>
+                        <button
+                          type="button"
+                          style={s.favoriteBtnDetail}
+                          onClick={() => toggleFavorite(selectedAd.id)}
+                          aria-label="В избранное"
+                        >
+                          <Heart
+                            size={20}
+                            color={favorites.includes(selectedAd.id) ? "#C94F4F" : "#8a7a63"}
+                            fill={favorites.includes(selectedAd.id) ? "#C94F4F" : "none"}
                           />
-                        ))}
+                        </button>
                       </div>
-                    )}
-                  </div>
-                )}
-
-                <h2 style={s.detailTitle}>{selectedAd.title}</h2>
-                {selectedAd.sold && <span style={s.soldBadgeDetail}>ПРОДАНО</span>}
-                {selectedAd.price && <p style={s.detailPrice}>{selectedAd.price} ₽</p>}
-
-                {selectedAd.ownerName && (
-                  <div
-                    style={s.sellerCard}
-                    onClick={() => openSellerProfile(selectedAd.ownerId, selectedAd.ownerName)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === "Enter") openSellerProfile(selectedAd.ownerId, selectedAd.ownerName); }}
-                  >
-                    <div style={s.sellerAvatar}>
-                      <UserRound size={22} color="#C97B3E" />
                     </div>
-                    <div style={s.sellerInfo}>
-                      <p style={s.sellerName}>{selectedAd.ownerName}</p>
-                      <div style={s.sellerRatingRow}>
-                        {selectedAdRating && selectedAdRating.count > 0 ? (
-                          <>
-                            <Stars value={selectedAdRating.avg} size={14} />
-                            <span style={s.sellerRatingText}>
-                              {selectedAdRating.avg.toFixed(1)} · {selectedAdRating.count} {countWord(selectedAdRating.count)}
-                            </span>
-                          </>
-                        ) : (
-                          <span style={s.sellerRatingText}>Пока нет отзывов</span>
+
+                    {photos.length > 0 ? (
+                      <div>
+                        <div style={s.detailPhotoWrap}>
+                          <img src={photos[lightboxIndex]} alt={selectedAd.title} style={s.detailMainPhoto} />
+                          {photos.length > 1 && (
+                            <>
+                              <button
+                                type="button"
+                                style={{ ...s.photoNavBtn, left: 8 }}
+                                onClick={() => showPrevPhoto(photos.length)}
+                                aria-label="Предыдущее фото"
+                              >
+                                <ChevronLeft size={22} color="#FBF3E1" />
+                              </button>
+                              <button
+                                type="button"
+                                style={{ ...s.photoNavBtn, right: 8 }}
+                                onClick={() => showNextPhoto(photos.length)}
+                                aria-label="Следующее фото"
+                              >
+                                <ChevronRight size={22} color="#FBF3E1" />
+                              </button>
+                              <span style={s.photoCounter}>{lightboxIndex + 1} / {photos.length}</span>
+                            </>
+                          )}
+                        </div>
+                        {photos.length > 1 && (
+                          <div style={s.thumbRow}>
+                            {photos.map((p, i) => (
+                              <img
+                                key={i}
+                                src={p}
+                                alt={`фото ${i + 1}`}
+                                className="kb-thumb"
+                                style={{ ...s.thumb, border: i === lightboxIndex ? "2px solid #C97B3E" : "2px solid transparent" }}
+                                onClick={() => setLightboxIndex(i)}
+                              />
+                            ))}
+                          </div>
                         )}
                       </div>
-                    </div>
-                    <ChevronRight size={18} color="#8a7a63" />
+                    ) : (
+                      <h2 style={s.detailTitleNoPhoto}>{selectedAd.title}</h2>
+                    )}
                   </div>
-                )}
 
-                {canShowChatBtn(selectedAd) && (
-                  <button type="button" style={s.chatWithSellerBtn} onClick={() => openChatWithSeller(selectedAd)}>
-                    <MessageCircle size={16} style={{ marginRight: 6, verticalAlign: "-3px" }} />
-                    Написать продавцу
-                  </button>
-                )}
-
-                <div style={s.detailContactRow}>
-                  <Phone size={14} style={{ marginRight: 6 }} />
-                  <span>{selectedAd.contact}</span>
+                  {selectedAd.description && (
+                    <div style={s.descCard}>
+                      <h3 style={s.sideSectionTitle}>Описание</h3>
+                      <p style={s.detailDesc}>{selectedAd.description}</p>
+                    </div>
+                  )}
                 </div>
 
-                {selectedAd.description && (
-                  <>
-                    <h3 style={s.similarTitle}>Описание</h3>
-                    <p style={s.detailDesc}>{selectedAd.description}</p>
-                  </>
-                )}
+                <div className="kb-detail-side">
+                  <div style={s.sideCard}>
+                    {photos.length > 0 && <h2 style={s.detailTitle}>{selectedAd.title}</h2>}
+                    {selectedAd.sold && <span style={s.soldBadgeDetail}>ПРОДАНО</span>}
+                    {selectedAd.price && <p style={s.detailPrice}>{selectedAd.price} ₽</p>}
 
-                {showDelete && (
-                  <>
-                    <button
-                      type="button"
-                      style={selectedAd.sold ? s.unsoldBtn : s.soldBtn}
-                      onClick={() => toggleSold(selectedAd)}
-                    >
-                      {selectedAd.sold ? "Вернуть в продажу" : "Отметить как проданное"}
-                    </button>
-                    <div style={s.detailActionsRow}>
-                      <button
-                        type="button"
-                        style={s.editFullBtn}
-                        onClick={() => openEditForm(selectedAd)}
+                    {selectedAd.ownerName && (
+                      <div
+                        style={s.sellerCard}
+                        onClick={() => openSellerProfile(selectedAd.ownerId, selectedAd.ownerName)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === "Enter") openSellerProfile(selectedAd.ownerId, selectedAd.ownerName); }}
                       >
-                        Редактировать
+                        <div style={s.sellerAvatar}>
+                          <UserRound size={22} color="#C97B3E" />
+                        </div>
+                        <div style={s.sellerInfo}>
+                          <p style={s.sellerName}>{selectedAd.ownerName}</p>
+                          <div style={s.sellerRatingRow}>
+                            {selectedAdRating && selectedAdRating.count > 0 ? (
+                              <>
+                                <Stars value={selectedAdRating.avg} size={14} />
+                                <span style={s.sellerRatingText}>
+                                  {selectedAdRating.avg.toFixed(1)} · {selectedAdRating.count} {countWord(selectedAdRating.count)}
+                                </span>
+                              </>
+                            ) : (
+                              <span style={s.sellerRatingText}>Пока нет отзывов</span>
+                            )}
+                          </div>
+                        </div>
+                        <ChevronRight size={18} color="#8a7a63" />
+                      </div>
+                    )}
+
+                    {canShowChatBtn(selectedAd) && (
+                      <button type="button" style={s.chatWithSellerBtn} onClick={() => openChatWithSeller(selectedAd)}>
+                        <MessageCircle size={16} style={{ marginRight: 6, verticalAlign: "-3px" }} />
+                        Написать продавцу
                       </button>
-                      <button
-                        type="button"
-                        style={s.deleteFullBtn}
-                        onClick={() => handleDelete(selectedAd.id)}
-                      >
-                        Удалить
-                      </button>
+                    )}
+
+                    <div style={s.detailContactRow}>
+                      <Phone size={14} style={{ marginRight: 6 }} />
+                      <span>{selectedAd.contact}</span>
                     </div>
-                  </>
-                )}
+
+                    {showDelete && (
+                      <>
+                        <button
+                          type="button"
+                          style={selectedAd.sold ? s.unsoldBtn : s.soldBtn}
+                          onClick={() => toggleSold(selectedAd)}
+                        >
+                          {selectedAd.sold ? "Вернуть в продажу" : "Отметить как проданное"}
+                        </button>
+                        <div style={s.detailActionsRow}>
+                          <button
+                            type="button"
+                            style={s.editFullBtn}
+                            onClick={() => openEditForm(selectedAd)}
+                          >
+                            Редактировать
+                          </button>
+                          <button
+                            type="button"
+                            style={s.deleteFullBtn}
+                            onClick={() => handleDelete(selectedAd.id)}
+                          >
+                            Удалить
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {similarAds.length > 0 && (
@@ -1273,7 +1291,10 @@ const s = {
   overlayCenter: { position: "fixed", inset: 0, background: "rgba(20,12,4,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10, padding: 16 },
   formCard: { background: "#FBF3E1", width: "100%", maxWidth: 480, borderRadius: 16, padding: "18px 20px 24px", maxHeight: "88vh", overflowY: "auto" },
   detailCard: { background: "#FBF3E1", width: "100%", maxWidth: 480, borderRadius: 16, padding: "18px 20px 26px", maxHeight: "90vh", overflowY: "auto" },
-  pageCard: { background: "#FBF3E1", maxWidth: 640, margin: "12px auto 0", borderRadius: 16, padding: "18px 20px 26px", boxShadow: "0 6px 18px rgba(20,12,4,0.25)" },
+  photoCard: { background: "#FBF3E1", borderRadius: 16, padding: "16px 16px 18px", boxShadow: "0 6px 18px rgba(20,12,4,0.25)", marginBottom: 14 },
+  descCard: { background: "#FBF3E1", borderRadius: 16, padding: "18px 20px 22px", boxShadow: "0 6px 18px rgba(20,12,4,0.25)" },
+  sideCard: { background: "#FBF3E1", borderRadius: 16, padding: "18px 20px 22px", boxShadow: "0 6px 18px rgba(20,12,4,0.25)" },
+  sideSectionTitle: { fontFamily: "'Caveat', cursive", fontSize: 20, color: "#3A2A18", margin: "0 0 10px", fontWeight: 700 },
   pageTopRow: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
   sellerCard: { display: "flex", alignItems: "center", gap: 12, background: "rgba(201,123,62,0.10)", border: "1.5px solid rgba(201,123,62,0.4)", borderRadius: 12, padding: "10px 12px", margin: "14px 0", cursor: "pointer" },
   sellerAvatar: { width: 42, height: 42, borderRadius: "50%", background: "rgba(201,123,62,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
@@ -1281,14 +1302,15 @@ const s = {
   sellerName: { fontSize: 14.5, fontWeight: 700, color: "#2E2013", margin: "0 0 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   sellerRatingRow: { display: "flex", alignItems: "center", gap: 6 },
   sellerRatingText: { fontSize: 12, color: "#6B5A45", fontWeight: 700 },
-  detailPhotoWrap: { position: "relative" },
-  detailMainPhoto: { width: "100%", maxHeight: 420, objectFit: "contain", background: "#2E2013", borderRadius: 8, display: "block" },
+  detailPhotoWrap: { position: "relative", aspectRatio: "4 / 3", background: "#F3E9D2", borderRadius: 10, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" },
+  detailMainPhoto: { width: "100%", height: "100%", objectFit: "contain", display: "block" },
   photoNavBtn: { position: "absolute", top: "50%", transform: "translateY(-50%)", background: "rgba(20,12,4,0.5)", border: "none", borderRadius: "50%", width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" },
   photoCounter: { position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.6)", color: "#FBF3E1", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999 },
   thumbRow: { display: "flex", gap: 8, marginTop: 8, overflowX: "auto" },
   thumb: { width: 52, height: 52, objectFit: "cover", borderRadius: 6, flexShrink: 0 },
-  detailTitle: { fontFamily: "'Caveat', cursive", fontSize: 28, color: "#2E2013", margin: "14px 0 2px", fontWeight: 700 },
-  detailPrice: { fontSize: 19, color: "#3A2A18", fontWeight: 700, margin: "2px 0 10px" },
+  detailTitle: { fontFamily: "'Caveat', cursive", fontSize: 25, color: "#2E2013", margin: "0 0 8px", fontWeight: 700, lineHeight: 1.25 },
+  detailTitleNoPhoto: { fontFamily: "'Caveat', cursive", fontSize: 25, color: "#2E2013", margin: "0 0 4px", fontWeight: 700, lineHeight: 1.25 },
+  detailPrice: { fontSize: 26, color: "#1F1408", fontWeight: 800, margin: "0 0 14px" },
   detailDesc: { fontSize: 14.5, color: "#5A4A38", lineHeight: 1.5, margin: "0 0 8px", whiteSpace: "pre-wrap" },
   detailOwner: { fontSize: 12.5, color: "#8a7a63", margin: "0 0 14px" },
   detailOwnerBtn: { display: "inline-flex", alignItems: "center", background: "rgba(201,123,62,0.14)", border: "1.5px solid #C97B3E", borderRadius: 999, cursor: "pointer", padding: "8px 14px", margin: "0 0 14px", fontSize: 13.5, fontWeight: 700, color: "#3A2A18", fontFamily: "'PT Sans', sans-serif" },
@@ -1348,13 +1370,13 @@ const s = {
   chatInput: { flex: 1, padding: "9px 12px", borderRadius: 999, border: "1.5px solid rgba(251,243,225,0.35)", background: "rgba(251,243,225,0.92)", fontSize: 14, fontFamily: "'PT Sans', sans-serif", color: "#2E2013" },
   chatSendBtn: { width: 40, height: 40, borderRadius: "50%", background: "#C97B3E", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
 
-  similarSection: { marginTop: 18, paddingTop: 14, borderTop: "1px dashed #C9B896" },
-  similarTitle: { fontFamily: "'Caveat', cursive", fontSize: 20, color: "#3A2A18", margin: "0 0 10px", fontWeight: 700 },
+  similarSection: { marginTop: 18, paddingTop: 14, borderTop: "1px dashed rgba(251,243,225,0.3)", maxWidth: 1020, marginLeft: "auto", marginRight: "auto" },
+  similarTitle: { fontFamily: "'Caveat', cursive", fontSize: 22, color: "#F0E6D2", margin: "0 0 10px", fontWeight: 700 },
   similarRow: { display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4 },
   similarCard: { flexShrink: 0, width: 118, cursor: "pointer" },
   similarPhotoWrap: { width: 118, height: 118, borderRadius: 10, background: "#EFE6D2", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" },
   similarPhoto: { width: "100%", height: "100%", objectFit: "contain", display: "block" },
   similarPhotoPlaceholder: { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" },
-  similarCardTitle: { fontSize: 12, color: "#3A2A18", fontWeight: 700, margin: "6px 0 2px", lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", minHeight: 30 },
-  similarCardPrice: { fontSize: 12.5, color: "#1F1408", fontWeight: 800, margin: 0 },
+  similarCardTitle: { fontSize: 12, color: "#F0E6D2", fontWeight: 700, margin: "6px 0 2px", lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", minHeight: 30 },
+  similarCardPrice: { fontSize: 12.5, color: "#F0E6D2", fontWeight: 800, margin: 0 },
 };

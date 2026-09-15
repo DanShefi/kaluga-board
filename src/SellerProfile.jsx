@@ -13,7 +13,7 @@ import {
 
 const REVIEW_TEXT_MAX = 300;
 
-function Stars({ value, size = 15, onPick, interactive = false }) {
+export function Stars({ value, size = 15, onPick, interactive = false }) {
   const [hover, setHover] = useState(0);
   const shown = interactive ? hover || value : value;
   return (
@@ -197,7 +197,7 @@ export default function SellerProfile({ sellerId, sellerName, currentUser, curre
   );
 }
 
-function countWord(n) {
+export function countWord(n) {
   const mod10 = n % 10;
   const mod100 = n % 100;
   if (mod10 === 1 && mod100 !== 11) return "отзыв";

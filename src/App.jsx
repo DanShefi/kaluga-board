@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, X, Phone, MapPin, ChevronLeft, ChevronRight, Heart, Car, Home, Briefcase, Wrench, ShoppingBag, LayoutGrid, LogOut, UserRound, SlidersHorizontal, MessageCircle, Send } from "lucide-react";
+import { Plus, X, Phone, MapPin, ChevronLeft, ChevronRight, Heart, Car, Home, Briefcase, Wrench, ShoppingBag, LayoutGrid, LogOut, UserRound, SlidersHorizontal, MessageCircle, Send, Star } from "lucide-react";
 import { db, auth } from "./firebase.js";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import {
@@ -12,8 +12,10 @@ import {
   query,
   orderBy,
   where,
+  getDocs,
 } from "firebase/firestore";
 import AuthModal from "./AuthModal.jsx";
+import SellerProfile from "./SellerProfile.jsx";
 
 const CATEGORIES = [
   { id: "transport", label: "Транспорт", pin: "#3E6FA5", icon: Car },
@@ -95,6 +97,8 @@ export default function App() {
   const [priceMin, setPriceMin] = useState("");
   const [priceMax, setPriceMax] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [sellerProfile, setSellerProfile] = useState(null);
+  const [selectedAdRating, setSelectedAdRating] = useState(null);
   const [form, setForm] = useState({
     title: "",
     category: "goods",
@@ -173,6 +177,35 @@ export default function App() {
     );
     return () => unsubscribe();
   }, [activeConversation?.id]);
+
+  useEffect(() => {
+    if (!selectedAd || !selectedAd.ownerId) {
+      setSelectedAdRating(null);
+      return;
+    }
+    let cancelled = false;
+    const q = query(collection(db, "reviews"), where("sellerId", "==", selectedAd.ownerId));
+    getDocs(q)
+      .then((snapshot) => {
+        if (cancelled) return;
+        const list = snapshot.docs.map((d) => d.data());
+        const count = list.length;
+        const avg = count ? list.reduce((sum, r) => sum + (r.rating || 0), 0) / count : 0;
+        setSelectedAdRating({ avg, count });
+      })
+      .catch((err) => {
+        console.error(err);
+        if (!cancelled) setSelectedAdRating(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAd?.ownerId]);
+
+  function openSellerProfile(id, name) {
+    if (!id) return;
+    setSellerProfile({ id, name: name || "Продавец" });
+  }
 
   async function handlePhotos(e) {
     const files = Array.from(e.target.files || []);
@@ -879,10 +912,20 @@ export default function App() {
               {selectedAd.price && <p style={s.detailPrice}>{selectedAd.price} ₽</p>}
               {selectedAd.description && <p style={s.detailDesc}>{selectedAd.description}</p>}
               {selectedAd.ownerName && (
-                <p style={s.detailOwner}>
+                <button
+                  type="button"
+                  style={s.detailOwnerBtn}
+                  onClick={() => openSellerProfile(selectedAd.ownerId, selectedAd.ownerName)}
+                >
                   <UserRound size={12} style={{ marginRight: 4, verticalAlign: "-2px" }} />
                   {selectedAd.ownerName}
-                </p>
+                  {selectedAdRating && selectedAdRating.count > 0 && (
+                    <span style={s.detailOwnerRating}>
+                      <Star size={11} color="#C97B3E" fill="#C97B3E" style={{ marginLeft: 8, marginRight: 3, verticalAlign: "-1px" }} />
+                      {selectedAdRating.avg.toFixed(1)} ({selectedAdRating.count})
+                    </span>
+                  )}
+                </button>
               )}
 
               <div style={s.detailContactRow}>
@@ -996,6 +1039,17 @@ export default function App() {
       )}
 
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
+
+      {sellerProfile && (
+        <SellerProfile
+          sellerId={sellerProfile.id}
+          sellerName={sellerProfile.name}
+          currentUser={currentUser}
+          currentUserName={currentUser ? displayNameFor(currentUser) : ""}
+          conversations={conversations}
+          onClose={() => setSellerProfile(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1088,6 +1142,8 @@ const s = {
   detailPrice: { fontSize: 19, color: "#3A2A18", fontWeight: 700, margin: "2px 0 10px" },
   detailDesc: { fontSize: 14.5, color: "#5A4A38", lineHeight: 1.5, margin: "0 0 8px", whiteSpace: "pre-wrap" },
   detailOwner: { fontSize: 12.5, color: "#8a7a63", margin: "0 0 14px" },
+  detailOwnerBtn: { display: "flex", alignItems: "center", background: "transparent", border: "none", cursor: "pointer", padding: 0, margin: "0 0 14px", fontSize: 12.5, color: "#8a7a63", fontFamily: "'PT Sans', sans-serif" },
+  detailOwnerRating: { display: "inline-flex", alignItems: "center", fontWeight: 700, color: "#6B5A45" },
   detailContactRow: { display: "flex", alignItems: "center", fontSize: 14, color: "#3A2A18", fontWeight: 700, borderTop: "1px dashed #C9B896", paddingTop: 12, marginBottom: 16 },
   soldBadgeDetail: { display: "inline-block", background: "#3A2A18", color: "#FBF3E1", fontSize: 11, fontWeight: 800, letterSpacing: 0.5, padding: "3px 10px", borderRadius: 999, marginBottom: 8 },
   soldBtn: { width: "100%", padding: "11px", borderRadius: 10, border: "none", background: "#5C8F4E", color: "#FBF3E1", fontSize: 14, fontWeight: 700, cursor: "pointer", marginBottom: 10 },

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Plus, X, Phone, MapPin, ChevronLeft, ChevronRight, Heart, Car, Home, Briefcase, Wrench, ShoppingBag, LayoutGrid, LogOut, UserRound, SlidersHorizontal, MessageCircle, Send, Star, Eye } from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
+import { Plus, X, Phone, MapPin, ChevronLeft, ChevronRight, Heart, Car, Home, Briefcase, Wrench, ShoppingBag, LayoutGrid, LogOut, UserRound, SlidersHorizontal, MessageCircle, Send, Star, Eye, Share2, Check } from "lucide-react";
 import { db, auth } from "./firebase.js";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import {
@@ -92,7 +93,9 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [saving, setSaving] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
-  const [selectedAd, setSelectedAd] = useState(null);
+  const navigate = useNavigate();
+  const { id: adIdParam } = useParams();
+  const selectedAd = adIdParam ? (ads || []).find((a) => a.id === adIdParam) || null : null;
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [favorites, setFavorites] = useState(loadFavorites);
   const [showFilters, setShowFilters] = useState(false);
@@ -109,6 +112,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sellerProfile, setSellerProfile] = useState(null);
   const [selectedAdRating, setSelectedAdRating] = useState(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [form, setForm] = useState({
     title: "",
     category: "goods",
@@ -189,6 +193,15 @@ export default function App() {
   }, [activeConversation?.id]);
 
   useEffect(() => {
+    if (!selectedAd) return;
+    setLightboxIndex(0);
+    if (selectedAd.ownerId !== (currentUser && currentUser.uid)) {
+      updateDoc(doc(db, "ads", selectedAd.id), { views: increment(1) }).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAd?.id]);
+
+  useEffect(() => {
     if (!selectedAd || !selectedAd.ownerId) {
       setSelectedAdRating(null);
       return;
@@ -259,7 +272,7 @@ export default function App() {
       contact: ad.contact || "",
       photos: ad.photos && ad.photos.length ? ad.photos : (ad.photo ? [ad.photo] : []),
     });
-    setSelectedAd(null);
+    navigate("/");
     setShowForm(true);
   }
 
@@ -310,7 +323,7 @@ export default function App() {
     if (!confirmed) return;
     try {
       await deleteDoc(doc(db, "ads", id));
-      setSelectedAd(null);
+      navigate("/");
     } catch (err) {
       setError("Не удалось удалить объявление.");
     }
@@ -319,7 +332,6 @@ export default function App() {
   async function toggleSold(ad) {
     try {
       await updateDoc(doc(db, "ads", ad.id), { sold: !ad.sold });
-      setSelectedAd((cur) => (cur && cur.id === ad.id ? { ...cur, sold: !ad.sold } : cur));
     } catch (err) {
       setError("Не удалось изменить статус объявления.");
     }
@@ -331,11 +343,11 @@ export default function App() {
     setShowMyAds(false);
     setShowMessages(false);
     setActiveConversation(null);
-    setSelectedAd(null);
     setSellerProfile(null);
     setShowForm(false);
     setFilter("all");
     setSearchQuery("");
+    navigate("/");
   }
 
   function openMyAds() {
@@ -365,7 +377,7 @@ export default function App() {
     }
     if (!ad.ownerId || ad.ownerId === currentUser.uid) return;
     const existing = conversations.find((c) => c.adId === ad.id && c.buyerId === currentUser.uid && c.sellerId === ad.ownerId);
-    setSelectedAd(null);
+    navigate("/");
     setShowMyAds(false);
     setShowMessages(true);
     if (existing) {
@@ -439,10 +451,16 @@ export default function App() {
   }
 
   function openAd(ad) {
-    setSelectedAd(ad);
-    setLightboxIndex(0);
-    if (ad.ownerId !== (currentUser && currentUser.uid)) {
-      updateDoc(doc(db, "ads", ad.id), { views: increment(1) }).catch(() => {});
+    navigate(`/ad/${ad.id}`);
+  }
+
+  async function copyShareLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 1500);
+    } catch {
+      setError("Не удалось скопировать ссылку.");
     }
   }
 
@@ -887,7 +905,7 @@ export default function App() {
           .filter((a) => a.id !== selectedAd.id && a.category === selectedAd.category && !a.sold)
           .slice(0, 8);
         return (
-          <div style={s.overlayCenter} onClick={() => setSelectedAd(null)}>
+          <div style={s.overlayCenter} onClick={() => navigate("/")}>
             <div style={s.detailCard} onClick={(e) => e.stopPropagation()}>
               <div style={s.formHeader}>
                 <span style={{ ...s.catTag, color: cat.pin }}>
@@ -895,6 +913,14 @@ export default function App() {
                   {cat.label}
                 </span>
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <button
+                    type="button"
+                    style={s.favoriteBtnDetail}
+                    onClick={copyShareLink}
+                    aria-label="Скопировать ссылку на объявление"
+                  >
+                    {linkCopied ? <Check size={19} color="#5C8F4E" /> : <Share2 size={19} color="#8a7a63" />}
+                  </button>
                   <button
                     type="button"
                     style={s.favoriteBtnDetail}
@@ -907,7 +933,7 @@ export default function App() {
                       fill={favorites.includes(selectedAd.id) ? "#C94F4F" : "none"}
                     />
                   </button>
-                  <button type="button" style={s.closeBtn} onClick={() => setSelectedAd(null)} aria-label="Закрыть">
+                  <button type="button" style={s.closeBtn} onClick={() => navigate("/")} aria-label="Закрыть">
                     <X size={20} color="#5A4029" />
                   </button>
                 </div>
@@ -1051,6 +1077,23 @@ export default function App() {
           </div>
         );
       })()}
+
+      {adIdParam && ads !== null && !selectedAd && (
+        <div style={s.overlayCenter} onClick={() => navigate("/")}>
+          <div style={s.detailCard} onClick={(e) => e.stopPropagation()}>
+            <div style={s.formHeader}>
+              <h2 style={s.formTitle}>Объявление не найдено</h2>
+              <button type="button" style={s.closeBtn} onClick={() => navigate("/")} aria-label="Закрыть">
+                <X size={18} color="#5A4029" />
+              </button>
+            </div>
+            <p style={s.emptyText}>Возможно, оно было удалено или ссылка устарела.</p>
+            <button type="button" style={s.submitBtn} onClick={() => navigate("/")}>
+              На главную
+            </button>
+          </div>
+        </div>
+      )}
 
       {showForm && (
         <div style={s.overlay} onClick={closeForm}>

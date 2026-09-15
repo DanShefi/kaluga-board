@@ -327,6 +327,17 @@ export default function App() {
 
   const unreadTotal = conversations.reduce((sum, c) => sum + (isUnread(c) ? 1 : 0), 0);
 
+  function goHome() {
+    setShowMyAds(false);
+    setShowMessages(false);
+    setActiveConversation(null);
+    setSelectedAd(null);
+    setSellerProfile(null);
+    setShowForm(false);
+    setFilter("all");
+    setSearchQuery("");
+  }
+
   function openMyAds() {
     setShowMessages(false);
     setActiveConversation(null);
@@ -502,8 +513,6 @@ export default function App() {
         tabIndex={0}
         onKeyDown={(e) => { if (e.key === "Enter") openAd(ad); }}
       >
-        <div style={{ ...s.pin, background: cat.pin }} />
-
         <div style={s.cardPhotoWrap}>
           {photos[0] ? (
             <img src={photos[0]} alt={ad.title} style={{ ...s.cardPhoto, ...(ad.sold ? { filter: "grayscale(0.6)", opacity: 0.6 } : {}) }} />
@@ -628,7 +637,9 @@ export default function App() {
               </div>
             )}
           </div>
-          <h1 style={s.title}>Калуга · доска объявлений</h1>
+          <button type="button" style={s.titleBtn} onClick={goHome} aria-label="На главную">
+            <h1 style={s.title}>Калуга · доска объявлений</h1>
+          </button>
           <p style={s.subtitle}>Место для локальных объявлений — от соседей соседям</p>
         </div>
       </header>
@@ -1141,6 +1152,7 @@ const s = {
   userChip: { display: "flex", alignItems: "center", gap: 6, padding: "5px 8px 5px 12px", borderRadius: 999, background: "rgba(0,0,0,0.15)", color: "#F0E6D2", fontSize: 12.5 },
   userName: { maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   logoutBtn: { background: "transparent", border: "none", color: "#F0E6D2", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" },
+  titleBtn: { background: "transparent", border: "none", padding: 0, margin: 0, cursor: "pointer", display: "block", width: "100%" },
   title: { fontFamily: "'Caveat', cursive", fontSize: 40, color: "#FBF3E1", margin: 0, fontWeight: 700, lineHeight: 1.1 },
   subtitle: { color: "#D9C9AE", fontSize: 13.5, margin: "6px 0 0" },
   searchRow: { position: "relative", padding: "0 16px 10px" },
@@ -1167,7 +1179,6 @@ const s = {
   grid: { gap: 14, marginTop: 8 },
 
   card: { position: "relative", background: "#FBF3E1", borderRadius: 14, padding: 0, overflow: "hidden", boxShadow: "0 6px 14px rgba(20,12,4,0.3)" },
-  pin: { position: "absolute", top: 4, left: "50%", transform: "translateX(-50%)", width: 14, height: 14, borderRadius: "50%", boxShadow: "0 2px 3px rgba(0,0,0,0.4)", zIndex: 3 },
 
   cardPhotoWrap: { position: "relative", width: "100%", aspectRatio: "4 / 3", background: "#EFE6D2", overflow: "hidden" },
   cardPhoto: { width: "100%", height: "100%", objectFit: "contain", display: "block" },

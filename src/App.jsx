@@ -114,6 +114,7 @@ export default function App() {
   const [sellerProfile, setSellerProfile] = useState(null);
   const [selectedAdRating, setSelectedAdRating] = useState(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [myRating, setMyRating] = useState(null);
   const [form, setForm] = useState({
     title: "",
     category: "goods",
@@ -226,6 +227,30 @@ export default function App() {
       cancelled = true;
     };
   }, [selectedAd?.ownerId]);
+
+  useEffect(() => {
+    if (!showMyAds || !currentUser) {
+      setMyRating(null);
+      return;
+    }
+    let cancelled = false;
+    const q = query(collection(db, "reviews"), where("sellerId", "==", currentUser.uid));
+    getDocs(q)
+      .then((snapshot) => {
+        if (cancelled) return;
+        const list = snapshot.docs.map((d) => d.data());
+        const count = list.length;
+        const avg = count ? list.reduce((sum, r) => sum + (r.rating || 0), 0) / count : 0;
+        setMyRating({ avg, count });
+      })
+      .catch((err) => {
+        console.error(err);
+        if (!cancelled) setMyRating(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showMyAds, currentUser?.uid]);
 
   function openSellerProfile(id, name) {
     if (!id) return;
@@ -518,6 +543,16 @@ export default function App() {
   });
 
   const myAds = (ads || []).filter((a) => currentUser && a.ownerId === currentUser.uid);
+  const myStats = myAds.reduce(
+    (acc, a) => {
+      acc.views += a.views || 0;
+      acc.favorites += a.favoritesCount || 0;
+      if (a.sold) acc.sold += 1;
+      else acc.active += 1;
+      return acc;
+    },
+    { views: 0, favorites: 0, active: 0, sold: 0 }
+  );
 
   function renderCard(ad, ownerView = false) {
     const cat = catInfo(ad.category);
@@ -681,8 +716,57 @@ export default function App() {
               <ChevronLeft size={18} style={{ verticalAlign: "-3px", marginRight: 4 }} />
               Назад
             </button>
-            <h2 style={s.myAdsTitle}>Мои объявления</h2>
+            <h2 style={s.myAdsTitle}>Личный кабинет</h2>
           </div>
+
+          <div style={s.profileCard}>
+            <div style={s.profileTopRow}>
+              <div style={s.profileAvatar}>
+                <UserRound size={26} color="#C97B3E" />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={s.profileName}>{displayNameFor(currentUser)}</p>
+                <div style={s.sellerRatingRow}>
+                  {myRating && myRating.count > 0 ? (
+                    <>
+                      <Stars value={myRating.avg} size={14} />
+                      <span style={s.sellerRatingText}>
+                        {myRating.avg.toFixed(1)} · {myRating.count} {countWord(myRating.count)}
+                      </span>
+                    </>
+                  ) : (
+                    <span style={s.sellerRatingText}>Пока нет отзывов</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div style={s.statsGrid}>
+              <div style={s.statTile}>
+                <LayoutGrid size={16} color="#C97B3E" style={{ marginBottom: 4 }} />
+                <span style={s.statValue}>{myStats.active}</span>
+                <span style={s.statLabel}>Активных</span>
+              </div>
+              <div style={s.statTile}>
+                <Check size={16} color="#5C8F4E" style={{ marginBottom: 4 }} />
+                <span style={s.statValue}>{myStats.sold}</span>
+                <span style={s.statLabel}>Продано</span>
+              </div>
+              <div style={s.statTile}>
+                <Eye size={16} color="#8a7a63" style={{ marginBottom: 4 }} />
+                <span style={s.statValue}>{myStats.views}</span>
+                <span style={s.statLabel}>Просмотров</span>
+              </div>
+              <div style={s.statTile}>
+                <Heart size={16} color="#C94F4F" style={{ marginBottom: 4 }} />
+                <span style={s.statValue}>{myStats.favorites}</span>
+                <span style={s.statLabel}>В избранном</span>
+              </div>
+            </div>
+          </div>
+
+          <h3 style={s.myAdsListTitle}>Мои объявления</h3>
+
           {myAds.length === 0 && (
             <div style={s.empty}>
               <p style={s.emptyText}>У тебя пока нет объявлений. Нажми "+", чтобы разместить первое.</p>
@@ -1263,6 +1347,15 @@ const s = {
   myAdsHeader: { display: "flex", alignItems: "center", gap: 12, maxWidth: 640, margin: "0 auto", padding: "6px 16px 14px" },
   backBtn: { display: "flex", alignItems: "center", padding: "6px 10px", borderRadius: 999, border: "1.5px solid rgba(251,243,225,0.35)", background: "rgba(0,0,0,0.12)", color: "#F0E6D2", fontSize: 13, fontWeight: 700, cursor: "pointer" },
   myAdsTitle: { fontFamily: "'Caveat', cursive", fontSize: 24, color: "#FBF3E1", margin: 0, fontWeight: 700 },
+  profileCard: { background: "#FBF3E1", maxWidth: 640, margin: "0 auto 18px", borderRadius: 16, padding: "16px 18px 18px", boxShadow: "0 6px 18px rgba(20,12,4,0.25)" },
+  profileTopRow: { display: "flex", alignItems: "center", gap: 12, marginBottom: 14 },
+  profileAvatar: { width: 50, height: 50, borderRadius: "50%", background: "rgba(201,123,62,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  profileName: { fontSize: 17, fontWeight: 700, color: "#2E2013", margin: "0 0 4px" },
+  statsGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 },
+  statTile: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "rgba(201,123,62,0.08)", borderRadius: 12, padding: "10px 4px" },
+  statValue: { fontSize: 17, fontWeight: 800, color: "#2E2013" },
+  statLabel: { fontSize: 10.5, color: "#6B5A45", fontWeight: 700, textAlign: "center", marginTop: 1 },
+  myAdsListTitle: { fontFamily: "'Caveat', cursive", fontSize: 20, color: "#FBF3E1", margin: "0 0 10px", fontWeight: 700, maxWidth: 640, marginLeft: "auto", marginRight: "auto", padding: "0 16px" },
 
   filterPanel: { padding: "12px 16px 14px", background: "rgba(0,0,0,0.15)", borderRadius: 12, display: "flex", flexDirection: "column", gap: 10 },
   filterRow: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" },

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, X, Phone, MapPin, ChevronLeft, ChevronRight, Heart, Car, Home, Briefcase, Wrench, ShoppingBag, LayoutGrid, LogOut, UserRound, SlidersHorizontal, MessageCircle, Send, Star } from "lucide-react";
+import { Plus, X, Phone, MapPin, ChevronLeft, ChevronRight, Heart, Car, Home, Briefcase, Wrench, ShoppingBag, LayoutGrid, LogOut, UserRound, SlidersHorizontal, MessageCircle, Send, Star, Eye } from "lucide-react";
 import { db, auth } from "./firebase.js";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import {
@@ -13,6 +13,7 @@ import {
   orderBy,
   where,
   getDocs,
+  increment,
 } from "firebase/firestore";
 import AuthModal from "./AuthModal.jsx";
 import SellerProfile from "./SellerProfile.jsx";
@@ -429,6 +430,9 @@ export default function App() {
   function openAd(ad) {
     setSelectedAd(ad);
     setLightboxIndex(0);
+    if (ad.ownerId !== (currentUser && currentUser.uid)) {
+      updateDoc(doc(db, "ads", ad.id), { views: increment(1) }).catch(() => {});
+    }
   }
 
   function showPrevPhoto(photosLength) {
@@ -440,7 +444,9 @@ export default function App() {
   }
 
   function toggleFavorite(id) {
-    setFavorites((favs) => (favs.includes(id) ? favs.filter((f) => f !== id) : [...favs, id]));
+    const isFav = favorites.includes(id);
+    setFavorites((favs) => (isFav ? favs.filter((f) => f !== id) : [...favs, id]));
+    updateDoc(doc(db, "ads", id), { favoritesCount: increment(isFav ? -1 : 1) }).catch(() => {});
   }
 
   function canDeleteAd(ad) {
@@ -482,7 +488,7 @@ export default function App() {
 
   const myAds = (ads || []).filter((a) => currentUser && a.ownerId === currentUser.uid);
 
-  function renderCard(ad) {
+  function renderCard(ad, ownerView = false) {
     const cat = catInfo(ad.category);
     const photos = ad.photos && ad.photos.length ? ad.photos : (ad.photo ? [ad.photo] : []);
     const showDelete = canDeleteAd(ad);
@@ -543,6 +549,18 @@ export default function App() {
               {ad.contact}
             </span>
           </div>
+          {ownerView && (
+            <div style={s.cardStatsRow}>
+              <span style={s.cardStatItem}>
+                <Eye size={12} style={{ marginRight: 3, verticalAlign: "-2px" }} />
+                {ad.views || 0}
+              </span>
+              <span style={s.cardStatItem}>
+                <Heart size={12} style={{ marginRight: 3, verticalAlign: "-2px" }} />
+                {ad.favoritesCount || 0}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -630,7 +648,7 @@ export default function App() {
             </div>
           )}
           <div className="kb-grid" style={s.grid}>
-            {myAds.map((ad) => renderCard(ad))}
+            {myAds.map((ad) => renderCard(ad, true))}
           </div>
         </main>
       ) : showMessages ? (
@@ -854,6 +872,9 @@ export default function App() {
           ? selectedAd.photos
           : (selectedAd.photo ? [selectedAd.photo] : []);
         const showDelete = canDeleteAd(selectedAd);
+        const similarAds = (ads || [])
+          .filter((a) => a.id !== selectedAd.id && a.category === selectedAd.category && !a.sold)
+          .slice(0, 8);
         return (
           <div style={s.overlayCenter} onClick={() => setSelectedAd(null)}>
             <div style={s.detailCard} onClick={(e) => e.stopPropagation()}>
@@ -986,6 +1007,34 @@ export default function App() {
                     </button>
                   </div>
                 </>
+              )}
+
+              {similarAds.length > 0 && (
+                <div style={s.similarSection}>
+                  <h3 style={s.similarTitle}>Похожие объявления</h3>
+                  <div style={s.similarRow}>
+                    {similarAds.map((sad) => {
+                      const sCat = catInfo(sad.category);
+                      const SIcon = sCat.icon;
+                      const sPhotos = sad.photos && sad.photos.length ? sad.photos : (sad.photo ? [sad.photo] : []);
+                      return (
+                        <div key={sad.id} style={s.similarCard} onClick={() => openAd(sad)}>
+                          <div style={s.similarPhotoWrap}>
+                            {sPhotos[0] ? (
+                              <img src={sPhotos[0]} alt={sad.title} style={s.similarPhoto} />
+                            ) : (
+                              <div style={s.similarPhotoPlaceholder}>
+                                <SIcon size={20} color={sCat.pin} />
+                              </div>
+                            )}
+                          </div>
+                          <p style={s.similarCardTitle}>{sad.title}</p>
+                          {sad.price && <p style={s.similarCardPrice}>{sad.price} ₽</p>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -1134,6 +1183,8 @@ const s = {
   price: { fontSize: 16, color: "#1F1408", fontWeight: 800, margin: "0 0 6px" },
   cardFooter: { borderTop: "1px dashed #C9B896", paddingTop: 8, marginTop: 2 },
   contact: { fontSize: 11, color: "#6B5A45" },
+  cardStatsRow: { display: "flex", gap: 12, marginTop: 6 },
+  cardStatItem: { display: "inline-flex", alignItems: "center", fontSize: 11, color: "#8a7a63", fontWeight: 700 },
 
   catTag: { display: "inline-flex", alignItems: "center", fontSize: 11.5, fontWeight: 700, textTransform: "none", letterSpacing: 0.2 },
   catTagIcon: { marginRight: 4, verticalAlign: "-2px" },
@@ -1218,4 +1269,14 @@ const s = {
   chatInputRow: { display: "flex", gap: 8, padding: 10, background: "rgba(0,0,0,0.12)" },
   chatInput: { flex: 1, padding: "9px 12px", borderRadius: 999, border: "1.5px solid rgba(251,243,225,0.35)", background: "rgba(251,243,225,0.92)", fontSize: 14, fontFamily: "'PT Sans', sans-serif", color: "#2E2013" },
   chatSendBtn: { width: 40, height: 40, borderRadius: "50%", background: "#C97B3E", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+
+  similarSection: { marginTop: 18, paddingTop: 14, borderTop: "1px dashed #C9B896" },
+  similarTitle: { fontFamily: "'Caveat', cursive", fontSize: 20, color: "#3A2A18", margin: "0 0 10px", fontWeight: 700 },
+  similarRow: { display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4 },
+  similarCard: { flexShrink: 0, width: 118, cursor: "pointer" },
+  similarPhotoWrap: { width: 118, height: 118, borderRadius: 10, background: "#EFE6D2", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" },
+  similarPhoto: { width: "100%", height: "100%", objectFit: "contain", display: "block" },
+  similarPhotoPlaceholder: { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" },
+  similarCardTitle: { fontSize: 12, color: "#3A2A18", fontWeight: 700, margin: "6px 0 2px", lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", minHeight: 30 },
+  similarCardPrice: { fontSize: 12.5, color: "#1F1408", fontWeight: 800, margin: 0 },
 };

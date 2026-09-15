@@ -97,6 +97,7 @@ export default function App() {
   const { id: adIdParam } = useParams();
   const selectedAd = adIdParam ? (ads || []).find((a) => a.id === adIdParam) || null : null;
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [phoneRevealed, setPhoneRevealed] = useState(false);
   const [favorites, setFavorites] = useState(loadFavorites);
   const [showFilters, setShowFilters] = useState(false);
   const [showMyAds, setShowMyAds] = useState(false);
@@ -195,6 +196,7 @@ export default function App() {
   useEffect(() => {
     if (!selectedAd) return;
     setLightboxIndex(0);
+    setPhoneRevealed(false);
     if (selectedAd.ownerId !== (currentUser && currentUser.uid)) {
       updateDoc(doc(db, "ads", selectedAd.id), { views: increment(1) }).catch(() => {});
     }
@@ -922,8 +924,25 @@ export default function App() {
                     )}
 
                     <div style={s.detailContactRow}>
-                      <Phone size={14} style={{ marginRight: 6 }} />
-                      <span>{selectedAd.contact}</span>
+                      {phoneRevealed ? (
+                        <div style={s.phoneRevealedRow}>
+                          <span style={s.phoneRevealedNumber}>
+                            <Phone size={14} style={{ marginRight: 6, verticalAlign: "-2px" }} />
+                            {selectedAd.contact}
+                          </span>
+                          <a
+                            href={`tel:${(selectedAd.contact || "").replace(/[^\d+]/g, "")}`}
+                            style={s.callBtn}
+                          >
+                            Позвонить
+                          </a>
+                        </div>
+                      ) : (
+                        <button type="button" style={s.showPhoneBtn} onClick={() => setPhoneRevealed(true)}>
+                          <Phone size={14} style={{ marginRight: 6, verticalAlign: "-2px" }} />
+                          Показать телефон
+                        </button>
+                      )}
                     </div>
 
                     {showDelete && (
@@ -1316,7 +1335,11 @@ const s = {
   detailOwnerBtn: { display: "inline-flex", alignItems: "center", background: "rgba(201,123,62,0.14)", border: "1.5px solid #C97B3E", borderRadius: 999, cursor: "pointer", padding: "8px 14px", margin: "0 0 14px", fontSize: 13.5, fontWeight: 700, color: "#3A2A18", fontFamily: "'PT Sans', sans-serif" },
   detailOwnerRating: { display: "inline-flex", alignItems: "center", fontWeight: 800, color: "#3A2A18" },
   detailOwnerHint: { marginLeft: 8, fontSize: 11.5, fontWeight: 700, color: "#C97B3E" },
-  detailContactRow: { display: "flex", alignItems: "center", fontSize: 14, color: "#3A2A18", fontWeight: 700, borderTop: "1px dashed #C9B896", paddingTop: 12, marginBottom: 16 },
+  detailContactRow: { borderTop: "1px dashed #C9B896", paddingTop: 12, marginBottom: 16 },
+  showPhoneBtn: { width: "100%", padding: "11px", borderRadius: 10, border: "1.5px solid #C97B3E", background: "transparent", color: "#C97B3E", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
+  phoneRevealedRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" },
+  phoneRevealedNumber: { fontSize: 14, color: "#3A2A18", fontWeight: 700 },
+  callBtn: { padding: "9px 16px", borderRadius: 10, border: "none", background: "#5C8F4E", color: "#FBF3E1", fontSize: 13.5, fontWeight: 700, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" },
   soldBadgeDetail: { display: "inline-block", background: "#3A2A18", color: "#FBF3E1", fontSize: 11, fontWeight: 800, letterSpacing: 0.5, padding: "3px 10px", borderRadius: 999, marginBottom: 8 },
   soldBtn: { width: "100%", padding: "11px", borderRadius: 10, border: "none", background: "#5C8F4E", color: "#FBF3E1", fontSize: 14, fontWeight: 700, cursor: "pointer", marginBottom: 10 },
   unsoldBtn: { width: "100%", padding: "11px", borderRadius: 10, border: "1.5px solid #5C8F4E", background: "transparent", color: "#5C8F4E", fontSize: 14, fontWeight: 700, cursor: "pointer", marginBottom: 10 },

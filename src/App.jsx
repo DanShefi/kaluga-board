@@ -572,12 +572,14 @@ export default function App() {
         <div style={s.cardBody}>
           <h3 style={s.cardTitle}>{ad.title}</h3>
           {ad.price && <p style={s.price}>{ad.price} ₽</p>}
-          <div style={s.cardFooter}>
-            <span style={s.contact}>
-              <Phone size={12} style={{ marginRight: 4, verticalAlign: "-2px" }} />
-              {ad.contact}
-            </span>
-          </div>
+          {ownerView && (
+            <div style={s.cardFooter}>
+              <span style={s.contact}>
+                <Phone size={12} style={{ marginRight: 4, verticalAlign: "-2px" }} />
+                {ad.contact}
+              </span>
+            </div>
+          )}
           {ownerView && (
             <div style={s.cardStatsRow}>
               <span style={s.cardStatItem}>

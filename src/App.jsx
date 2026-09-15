@@ -675,7 +675,7 @@ export default function App() {
                   <Plus size={20} color="#FBF3E1" />
                 </button>
                 <button style={s.myAdsBtn} onClick={openMyAds}>
-                  Мои объявления
+                  Личный кабинет
                 </button>
                 <div style={{ position: "relative", display: "inline-block" }}>
                   <button style={s.myAdsBtn} onClick={openMessages}>

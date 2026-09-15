@@ -27,6 +27,15 @@ const CATEGORIES = [
 
 const catInfo = (id) => CATEGORIES.find((c) => c.id === id) || CATEGORIES[4];
 
+function hexToRgba(hex, alpha) {
+  const h = hex.replace("#", "");
+  const bigint = parseInt(h, 16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 function seededRotation(seed) {
   const n = String(seed)
     .split("")
@@ -736,14 +745,22 @@ export default function App() {
         </button>
         {CATEGORIES.map((c) => {
           const Icon = c.icon;
+          const active = filter === c.id;
           return (
             <button
               key={c.id}
               className="kb-chip"
-              style={{ ...s.chip, ...(filter === c.id ? { ...s.chipActive, borderColor: c.pin } : {}) }}
+              style={{
+                ...s.chip,
+                background: active ? c.pin : hexToRgba(c.pin, 0.22),
+                borderColor: c.pin,
+                color: active ? "#FBF3E1" : "#FBF3E1",
+                fontWeight: active ? 800 : 700,
+                boxShadow: active ? `0 3px 10px ${hexToRgba(c.pin, 0.5)}` : "none",
+              }}
               onClick={() => setFilter(c.id)}
             >
-              <Icon size={14} style={s.chipIcon} />
+              <Icon size={16} style={s.chipIcon} color={active ? "#FBF3E1" : "#FBF3E1"} />
               {c.label}
             </button>
           );
@@ -917,14 +934,17 @@ export default function App() {
                   style={s.detailOwnerBtn}
                   onClick={() => openSellerProfile(selectedAd.ownerId, selectedAd.ownerName)}
                 >
-                  <UserRound size={12} style={{ marginRight: 4, verticalAlign: "-2px" }} />
+                  <UserRound size={15} style={{ marginRight: 6, verticalAlign: "-2px" }} />
                   {selectedAd.ownerName}
-                  {selectedAdRating && selectedAdRating.count > 0 && (
+                  {selectedAdRating && selectedAdRating.count > 0 ? (
                     <span style={s.detailOwnerRating}>
-                      <Star size={11} color="#C97B3E" fill="#C97B3E" style={{ marginLeft: 8, marginRight: 3, verticalAlign: "-1px" }} />
+                      <Star size={13} color="#C97B3E" fill="#C97B3E" style={{ marginLeft: 8, marginRight: 3, verticalAlign: "-2px" }} />
                       {selectedAdRating.avg.toFixed(1)} ({selectedAdRating.count})
                     </span>
+                  ) : (
+                    <span style={s.detailOwnerHint}>смотреть профиль</span>
                   )}
+                  <ChevronRight size={15} style={{ marginLeft: 4, flexShrink: 0 }} color="#C97B3E" />
                 </button>
               )}
 
@@ -1101,7 +1121,7 @@ const s = {
   pin: { position: "absolute", top: 4, left: "50%", transform: "translateX(-50%)", width: 14, height: 14, borderRadius: "50%", boxShadow: "0 2px 3px rgba(0,0,0,0.4)", zIndex: 3 },
 
   cardPhotoWrap: { position: "relative", width: "100%", aspectRatio: "4 / 3", background: "#EFE6D2", overflow: "hidden" },
-  cardPhoto: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
+  cardPhoto: { width: "100%", height: "100%", objectFit: "contain", display: "block" },
   cardPhotoPlaceholder: { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" },
   photoCountBadge: { position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.65)", color: "#FBF3E1", fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 999, zIndex: 2 },
   soldBadge: { position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%) rotate(-8deg)", background: "rgba(20,12,4,0.8)", color: "#FBF3E1", fontSize: 13, fontWeight: 800, letterSpacing: 1, padding: "4px 14px", borderRadius: 6, zIndex: 2, whiteSpace: "nowrap" },
@@ -1142,8 +1162,9 @@ const s = {
   detailPrice: { fontSize: 19, color: "#3A2A18", fontWeight: 700, margin: "2px 0 10px" },
   detailDesc: { fontSize: 14.5, color: "#5A4A38", lineHeight: 1.5, margin: "0 0 8px", whiteSpace: "pre-wrap" },
   detailOwner: { fontSize: 12.5, color: "#8a7a63", margin: "0 0 14px" },
-  detailOwnerBtn: { display: "flex", alignItems: "center", background: "transparent", border: "none", cursor: "pointer", padding: 0, margin: "0 0 14px", fontSize: 12.5, color: "#8a7a63", fontFamily: "'PT Sans', sans-serif" },
-  detailOwnerRating: { display: "inline-flex", alignItems: "center", fontWeight: 700, color: "#6B5A45" },
+  detailOwnerBtn: { display: "inline-flex", alignItems: "center", background: "rgba(201,123,62,0.14)", border: "1.5px solid #C97B3E", borderRadius: 999, cursor: "pointer", padding: "8px 14px", margin: "0 0 14px", fontSize: 13.5, fontWeight: 700, color: "#3A2A18", fontFamily: "'PT Sans', sans-serif" },
+  detailOwnerRating: { display: "inline-flex", alignItems: "center", fontWeight: 800, color: "#3A2A18" },
+  detailOwnerHint: { marginLeft: 8, fontSize: 11.5, fontWeight: 700, color: "#C97B3E" },
   detailContactRow: { display: "flex", alignItems: "center", fontSize: 14, color: "#3A2A18", fontWeight: 700, borderTop: "1px dashed #C9B896", paddingTop: 12, marginBottom: 16 },
   soldBadgeDetail: { display: "inline-block", background: "#3A2A18", color: "#FBF3E1", fontSize: 11, fontWeight: 800, letterSpacing: 0.5, padding: "3px 10px", borderRadius: 999, marginBottom: 8 },
   soldBtn: { width: "100%", padding: "11px", borderRadius: 10, border: "none", background: "#5C8F4E", color: "#FBF3E1", fontSize: 14, fontWeight: 700, cursor: "pointer", marginBottom: 10 },

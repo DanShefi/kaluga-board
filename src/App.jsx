@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Plus, X, Phone, MapPin, ChevronLeft, ChevronRight, Heart, Car, Home, Briefcase, Wrench, ShoppingBag, LayoutGrid, LogOut, UserRound, SlidersHorizontal, MessageCircle, Send, Star, Eye, Share2, Check } from "lucide-react";
+import { Plus, X, Phone, MapPin, ChevronLeft, ChevronRight, Heart, Car, Home, Briefcase, Wrench, ShoppingBag, LayoutGrid, LogOut, UserRound, SlidersHorizontal, MessageCircle, Send, Star, Eye, Share2, Check, Flag } from "lucide-react";
 import { db, auth } from "./firebase.js";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import {
@@ -9,6 +9,8 @@ import {
   updateDoc,
   deleteDoc,
   doc,
+  getDoc,
+  setDoc,
   onSnapshot,
   query,
   orderBy,
@@ -17,7 +19,7 @@ import {
   increment,
 } from "firebase/firestore";
 import AuthModal from "./AuthModal.jsx";
-import SellerProfile, { Stars, countWord } from "./SellerProfile.jsx";
+import SellerProfile, { Stars, countWord, formatLastSeen } from "./SellerProfile.jsx";
 
 const CATEGORIES = [
   { id: "transport", label: "Транспорт", pin: "#3E6FA5", icon: Car },
@@ -113,6 +115,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sellerProfile, setSellerProfile] = useState(null);
   const [selectedAdRating, setSelectedAdRating] = useState(null);
+  const [sellerLastSeen, setSellerLastSeen] = useState(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [myRating, setMyRating] = useState(null);
   const [form, setForm] = useState({
@@ -138,6 +141,16 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const ping = () => {
+      setDoc(doc(db, "users", currentUser.uid), { lastSeen: Date.now() }, { merge: true }).catch(() => {});
+    };
+    ping();
+    const interval = setInterval(ping, 60000);
+    return () => clearInterval(interval);
+  }, [currentUser?.uid]);
 
   useEffect(() => {
     const q = query(collection(db, "ads"), orderBy("createdAt", "desc"));
@@ -229,6 +242,25 @@ export default function App() {
   }, [selectedAd?.ownerId]);
 
   useEffect(() => {
+    if (!selectedAd || !selectedAd.ownerId) {
+      setSellerLastSeen(null);
+      return;
+    }
+    let cancelled = false;
+    getDoc(doc(db, "users", selectedAd.ownerId))
+      .then((snap) => {
+        if (cancelled) return;
+        setSellerLastSeen(snap.exists() ? snap.data().lastSeen || null : null);
+      })
+      .catch(() => {
+        if (!cancelled) setSellerLastSeen(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAd?.ownerId]);
+
+  useEffect(() => {
     if (!showMyAds || !currentUser) {
       setMyRating(null);
       return;
@@ -255,6 +287,25 @@ export default function App() {
   function openSellerProfile(id, name) {
     if (!id) return;
     setSellerProfile({ id, name: name || "Продавец" });
+  }
+
+  async function reportAd(ad) {
+    const confirmed = window.confirm("Пожаловаться на это объявление? Мы получим сигнал и проверим его.");
+    if (!confirmed) return;
+    try {
+      await addDoc(collection(db, "reports"), {
+        adId: ad.id,
+        adTitle: ad.title || "",
+        ownerId: ad.ownerId || null,
+        reportedBy: currentUser ? currentUser.uid : null,
+        reportedByName: currentUser ? displayNameFor(currentUser) : "Гость",
+        createdAt: Date.now(),
+      });
+      setError("Жалоба отправлена. Спасибо!");
+    } catch (err) {
+      console.error(err);
+      setError("Не удалось отправить жалобу.");
+    }
   }
 
   async function handlePhotos(e) {
@@ -909,6 +960,17 @@ export default function App() {
                             fill={favorites.includes(selectedAd.id) ? "#C94F4F" : "none"}
                           />
                         </button>
+                        {!showDelete && (
+                          <button
+                            type="button"
+                            style={s.favoriteBtnDetail}
+                            onClick={() => reportAd(selectedAd)}
+                            aria-label="Пожаловаться на объявление"
+                            title="Пожаловаться"
+                          >
+                            <Flag size={18} color="#8a7a63" />
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -997,6 +1059,17 @@ export default function App() {
                               <span style={s.sellerRatingText}>Пока нет отзывов</span>
                             )}
                           </div>
+                          {formatLastSeen(sellerLastSeen) && (
+                            <div style={s.onlineRow}>
+                              <span
+                                style={{
+                                  ...s.onlineDot,
+                                  background: formatLastSeen(sellerLastSeen).online ? "#5C8F4E" : "#B8A888",
+                                }}
+                              />
+                              <span style={s.onlineText}>{formatLastSeen(sellerLastSeen).text}</span>
+                            </div>
+                          )}
                         </div>
                         <ChevronRight size={18} color="#8a7a63" />
                       </div>
@@ -1416,6 +1489,9 @@ const s = {
   sellerName: { fontSize: 14.5, fontWeight: 700, color: "#2E2013", margin: "0 0 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   sellerRatingRow: { display: "flex", alignItems: "center", gap: 6 },
   sellerRatingText: { fontSize: 12, color: "#6B5A45", fontWeight: 700 },
+  onlineRow: { display: "flex", alignItems: "center", gap: 6, marginTop: 3 },
+  onlineDot: { width: 7, height: 7, borderRadius: "50%", flexShrink: 0 },
+  onlineText: { fontSize: 11.5, color: "#8a7a63" },
   detailPhotoWrap: { position: "relative", aspectRatio: "4 / 3", background: "#F3E9D2", borderRadius: 10, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" },
   detailMainPhoto: { width: "100%", height: "100%", objectFit: "contain", display: "block" },
   photoNavBtn: { position: "absolute", top: "50%", transform: "translateY(-50%)", background: "rgba(20,12,4,0.5)", border: "none", borderRadius: "50%", width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" },

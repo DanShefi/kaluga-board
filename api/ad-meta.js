@@ -75,7 +75,11 @@ export default async function handler(req, res) {
     const photosArr = (fields.photos?.arrayValue?.values || [])
       .map((v) => v.stringValue)
       .filter(Boolean);
-    const photo = photosArr[0] || fields.photo?.stringValue || "";
+    const hasPhoto = !!(photosArr[0] || fields.photo?.stringValue);
+    // Фото в базе хранится длинным текстовым кодом (base64), а не ссылкой —
+    // мессенджеры такой код не понимают, поэтому подсовываем им ссылку на
+    // /api/ad-image, которая отдаёт то же фото уже как настоящую картинку.
+    const photo = hasPhoto ? `${SITE_URL}/api/ad-image?id=${id}` : "";
     const fullTitle = price ? `${title} — ${price} ₽` : title;
     const pageUrl = `${SITE_URL}/ad/${id}`;
 

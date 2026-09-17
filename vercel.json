@@ -1,5 +1,16 @@
 {
   "rewrites": [
+    {
+      "source": "/ad/:id",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|Twitterbot|WhatsApp|TelegramBot|vkShare|Slackbot|LinkedInBot|Discordbot|SkypeUriPreview|Pinterest|redditbot|Google-InspectionTool).*"
+        }
+      ],
+      "destination": "/api/ad-meta?id=:id"
+    },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

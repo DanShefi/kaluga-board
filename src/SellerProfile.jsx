@@ -4,6 +4,7 @@ import { db } from "./firebase.js";
 import {
   collection,
   doc,
+  getDoc,
   setDoc,
   deleteDoc,
   onSnapshot,
@@ -12,6 +13,19 @@ import {
 } from "firebase/firestore";
 
 const REVIEW_TEXT_MAX = 300;
+const ONLINE_THRESHOLD_MS = 3 * 60 * 1000;
+
+export function formatLastSeen(ts) {
+  if (!ts) return null;
+  const diffMs = Date.now() - ts;
+  if (diffMs < ONLINE_THRESHOLD_MS) return { online: true, text: "в сети" };
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 60) return { online: false, text: `был(а) в сети ${minutes} мин назад` };
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return { online: false, text: `был(а) в сети ${hours} ч назад` };
+  const days = Math.floor(hours / 24);
+  return { online: false, text: `был(а) в сети ${days} дн назад` };
+}
 
 export function Stars({ value, size = 15, onPick, interactive = false }) {
   const [hover, setHover] = useState(0);
@@ -52,6 +66,7 @@ export default function SellerProfile({ sellerId, sellerName, currentUser, curre
   const [rating, setRating] = useState(0);
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
+  const [lastSeen, setLastSeen] = useState(null);
 
   const isSelf = !!currentUser && currentUser.uid === sellerId;
   const myReview = reviews && currentUser ? reviews.find((r) => r.authorId === currentUser.uid) : null;
@@ -73,6 +88,22 @@ export default function SellerProfile({ sellerId, sellerName, currentUser, curre
       }
     );
     return () => unsubscribe();
+  }, [sellerId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLastSeen(null);
+    getDoc(doc(db, "users", sellerId))
+      .then((snap) => {
+        if (cancelled) return;
+        setLastSeen(snap.exists() ? snap.data().lastSeen || null : null);
+      })
+      .catch(() => {
+        if (!cancelled) setLastSeen(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [sellerId]);
 
   useEffect(() => {
@@ -132,6 +163,13 @@ export default function SellerProfile({ sellerId, sellerName, currentUser, curre
             <X size={18} color="#5A4029" />
           </button>
         </div>
+
+        {formatLastSeen(lastSeen) && (
+          <div style={st.onlineRow}>
+            <span style={{ ...st.onlineDot, background: formatLastSeen(lastSeen).online ? "#5C8F4E" : "#B8A888" }} />
+            <span style={st.onlineText}>{formatLastSeen(lastSeen).text}</span>
+          </div>
+        )}
 
         <div style={st.summaryRow}>
           <Stars value={avg} size={17} />
@@ -213,6 +251,9 @@ const st = {
   closeBtn: { background: "transparent", border: "none", cursor: "pointer", padding: 4 },
   summaryRow: { display: "flex", alignItems: "center", gap: 10, marginBottom: 10 },
   summaryText: { fontSize: 13, color: "#6B5A45", fontWeight: 700 },
+  onlineRow: { display: "flex", alignItems: "center", gap: 6, marginBottom: 8 },
+  onlineDot: { width: 7, height: 7, borderRadius: "50%", flexShrink: 0 },
+  onlineText: { fontSize: 12, color: "#6B5A45" },
   hint: { fontSize: 13, color: "#8a7a63", margin: "8px 0" },
   error: { color: "#C94F4F", fontSize: 12.5, margin: "4px 0" },
   form: { background: "rgba(0,0,0,0.06)", borderRadius: 12, padding: "12px 14px", marginTop: 6 },

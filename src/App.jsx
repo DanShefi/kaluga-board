@@ -21,6 +21,19 @@ import {
 import AuthModal from "./AuthModal.jsx";
 import SellerProfile, { Stars, countWord, formatLastSeen } from "./SellerProfile.jsx";
 
+const VAPID_PUBLIC_KEY = "BEDlX3EXvvilTVJCi6aOJSLhFj7PHgwEeXn5zVsPpSGSqTXEtORcVgMHHci5kztxIcH74L2pmfnJUamZM4Xqx18";
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 const CATEGORIES = [
   { id: "transport", label: "Транспорт", pin: "#3E6FA5", icon: Car },
   { id: "realty", label: "Недвижимость", pin: "#5C8F4E", icon: Home },
@@ -118,6 +131,7 @@ export default function App() {
   const [sellerLastSeen, setSellerLastSeen] = useState(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [myRating, setMyRating] = useState(null);
+  const [pushStatus, setPushStatus] = useState("idle"); // idle | subscribing | subscribed | denied | unsupported
   const [form, setForm] = useState({
     title: "",
     category: "goods",
@@ -151,6 +165,54 @@ export default function App() {
     const interval = setInterval(ping, 60000);
     return () => clearInterval(interval);
   }, [currentUser?.uid]);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setPushStatus("idle");
+      return;
+    }
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      setPushStatus("unsupported");
+      return;
+    }
+    navigator.serviceWorker
+      .getRegistration("/sw.js")
+      .then((reg) => (reg ? reg.pushManager.getSubscription() : null))
+      .then((sub) => {
+        if (sub) setPushStatus("subscribed");
+      })
+      .catch(() => {});
+  }, [currentUser?.uid]);
+
+  async function enablePushNotifications() {
+    if (!currentUser) return;
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      setPushStatus("unsupported");
+      return;
+    }
+    setPushStatus("subscribing");
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setPushStatus("denied");
+        return;
+      }
+      const registration = await navigator.serviceWorker.register("/sw.js");
+      await navigator.serviceWorker.ready;
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        });
+      }
+      await setDoc(doc(db, "users", currentUser.uid), { pushSubscription: JSON.stringify(subscription) }, { merge: true });
+      setPushStatus("subscribed");
+    } catch (err) {
+      console.error(err);
+      setPushStatus("denied");
+    }
+  }
 
   useEffect(() => {
     const q = query(collection(db, "ads"), orderBy("createdAt", "desc"));
@@ -503,6 +565,19 @@ export default function App() {
         lastMessageAt: Date.now(),
         [`lastReadAt.${currentUser.uid}`]: Date.now(),
       });
+      const recipientId =
+        activeConversation.sellerId === currentUser.uid ? activeConversation.buyerId : activeConversation.sellerId;
+      if (recipientId) {
+        fetch("/api/send-push", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            toUserId: recipientId,
+            title: `Новое сообщение от ${displayNameFor(currentUser)}`,
+            body: text.slice(0, 120),
+          }),
+        }).catch(() => {});
+      }
     } catch (err) {
       console.error(err);
       setError("Не удалось отправить сообщение.");
@@ -791,6 +866,26 @@ export default function App() {
                 </div>
               </div>
             </div>
+
+            {pushStatus !== "unsupported" && (
+              <button
+                type="button"
+                style={{
+                  ...s.pushBtn,
+                  ...(pushStatus === "subscribed" ? s.pushBtnActive : {}),
+                }}
+                onClick={enablePushNotifications}
+                disabled={pushStatus === "subscribed" || pushStatus === "subscribing"}
+              >
+                {pushStatus === "subscribed"
+                  ? "Уведомления включены ✓"
+                  : pushStatus === "subscribing"
+                  ? "Включаем…"
+                  : pushStatus === "denied"
+                  ? "Уведомления заблокированы в браузере"
+                  : "Включить уведомления о сообщениях"}
+              </button>
+            )}
 
             <div style={s.statsGrid}>
               <div style={s.statTile}>
@@ -1424,6 +1519,19 @@ const s = {
   profileTopRow: { display: "flex", alignItems: "center", gap: 12, marginBottom: 14 },
   profileAvatar: { width: 50, height: 50, borderRadius: "50%", background: "rgba(201,123,62,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   profileName: { fontSize: 17, fontWeight: 700, color: "#2E2013", margin: "0 0 4px" },
+  pushBtn: {
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: 10,
+    border: "1.5px solid #C97B3E",
+    background: "transparent",
+    color: "#C97B3E",
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: "pointer",
+    marginBottom: 14,
+  },
+  pushBtnActive: { border: "1.5px solid #5C8F4E", color: "#5C8F4E", cursor: "default" },
   statsGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 },
   statTile: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "rgba(201,123,62,0.08)", borderRadius: 12, padding: "10px 4px" },
   statValue: { fontSize: 17, fontWeight: 800, color: "#2E2013" },

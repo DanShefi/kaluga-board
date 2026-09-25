@@ -3,13 +3,41 @@
 // записано в базу — отдельного сервера или Firebase Cloud Functions не нужно.
 // Ключи VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY берутся из переменных окружения
 // проекта в панели Vercel (Settings -> Environment Variables).
+//
+// Сайт теперь живёт на своём хостинге (kaluga-doska.ru), а эта функция —
+// на Vercel (kaluga-board.vercel.app), поэтому запрос идёт с другого домена.
+// Браузер такие запросы блокирует, если сервер явно не разрешит чужой домен
+// через CORS-заголовки — это и делает setCors() ниже.
 
 import webpush from "web-push";
 
 const PROJECT_ID = "kaluga-shef";
 const API_KEY = "AIzaSyCKTQljn8Zc2gEW3b1FbLr4jM2i8ipQnIQ";
 
+const ALLOWED_ORIGINS = new Set([
+  "https://kaluga-doska.ru",
+  "https://www.kaluga-doska.ru",
+  "https://kaluga-board.vercel.app",
+]);
+
+function setCors(req, res) {
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Vary", "Origin");
+}
+
 export default async function handler(req, res) {
+  setCors(req, res);
+
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return;
+  }
+
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
     return;
